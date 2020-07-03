@@ -19,8 +19,8 @@ import java.io.IOException;
 
 public class TwoPhaseBroadcast {
 	final static int N_PARTICIPANTS = 5;
-	final static int VOTE_TIMEOUT = 1000; // timeout for the votes, ms
-	final static int DECISION_TIMEOUT = 2000; // timeout for the decision, ms
+	final static int REQUEST_TIMEOUT = 1000; // timeout for the votes, ms
+	//final static int DECISION_TIMEOUT = 2000; // timeout for the decision, ms
 	final static int QUORUM_SIZE = (N_PARTICIPANTS + 1) / 2; // the votes that the participants will send (for testing)
 
 	// Start message that sends the list of participants to everyone
