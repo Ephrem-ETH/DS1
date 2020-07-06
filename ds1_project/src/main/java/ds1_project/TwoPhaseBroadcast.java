@@ -40,23 +40,6 @@ public class TwoPhaseBroadcast {
 		}
 	}
 
-	public static class UpdateResponse implements Serializable {
-		public boolean WRITEOK = false;
-
-		public UpdateResponse(final boolean WRITEOK) {
-			this.WRITEOK = WRITEOK;
-		}
-	}
-
-	public static class ReadResponse implements Serializable {
-		public final int value;
-
-		public ReadResponse(final int value2) {
-			this.value = value2;
-		}
-
-	}
-
 	public static class Key {
 		public static int[] keyparams;
 

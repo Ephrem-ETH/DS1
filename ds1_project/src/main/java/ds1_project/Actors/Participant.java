@@ -4,6 +4,7 @@ import ds1_project.TwoPhaseBroadcast.*;
 import ds1_project.Requests.*;
 import akka.actor.ActorRef;
 import akka.actor.Props;
+import ds1_project.Responses.*;
 
 
 public class Participant extends Node {

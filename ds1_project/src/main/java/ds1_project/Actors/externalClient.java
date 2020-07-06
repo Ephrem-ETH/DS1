@@ -3,6 +3,7 @@ package ds1_project.Actors ;
 import ds1_project.TwoPhaseBroadcast.* ;
 import akka.actor.AbstractActor;
 import akka.actor.Props;
+import ds1_project.Responses.*;
 
 public class externalClient extends AbstractActor {
 		
@@ -20,6 +21,6 @@ public class externalClient extends AbstractActor {
     }
 
     public void onReadResponse(ReadResponse msg){
-        System.out.println("Read value "+msg.value);
+        System.out.println("Read value "+msg.getValue());
     }
 }
