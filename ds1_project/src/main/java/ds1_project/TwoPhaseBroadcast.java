@@ -1,4 +1,5 @@
 package ds1_project;
+
 import ds1_project.Requests.*;
 import ds1_project.TwoPhaseBroadcast.Coordinator.Participant;
 import akka.actor.ActorRef;
@@ -10,6 +11,7 @@ import scala.concurrent.duration.Duration;
 
 import java.io.Serializable;
 import java.util.concurrent.TimeUnit;
+
 import java.util.Set;
 import java.util.HashSet;
 import java.util.List;
@@ -19,15 +21,15 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.io.IOException;
 
-
 public class TwoPhaseBroadcast {
-	//Variables
+	// Variables
 	final static int N_PARTICIPANTS = 5;
 	final static int REQUEST_TIMEOUT = 1000; // timeout for the votes, ms
-	//final static int DECISION_TIMEOUT = 2000; // timeout for the decision, ms
+	// final static int DECISION_TIMEOUT = 2000; // timeout for the decision, ms
 	final static int QUORUM_SIZE = (N_PARTICIPANTS + 1) / 2; // the votes that the participants will send (for testing)
-	public static int epoch_global = 0 ;
-	public static HashSet<Integer> history = new HashSet<>() ;
+	public static int epoch_global = 0;
+
+	public static HashMap<Key, Integer> history = new HashMap<Key, Integer>();
 
 	// Start message that sends the list of participants to everyone
 	public static class StartMessage implements Serializable {
@@ -47,20 +49,41 @@ public class TwoPhaseBroadcast {
 	}
 
 	public static class ReadResponse implements Serializable {
-		public final String value;
+		public final int value;
 
-		public ReadResponse(final String value2) {
+		public ReadResponse(final int value2) {
 			this.value = value2;
 		}
 
 	}
 
-	public static class key {
+	public static class Key {
 		public static int[] keyparams;
 
-		public key(final int e, final int i){
-			keyparams [0] = e ;
-			keyparams [1] = i ;
+		// epoch and sequence numbers
+		public Key(final int e, final int i) {
+			keyparams[0] = e;
+			keyparams[1] = i;
+		}
+	}
+
+	public static class externalClient extends AbstractActor {
+		
+		public externalClient () {
+		}
+
+		static public Props props() {
+			return Props.create(externalClient.class, () -> new externalClient());
+		}
+
+		@Override
+		public Receive createReceive() {
+			// TODO Auto-generated method stub
+			return receiveBuilder().match(ReadResponse.class, this::onReadResponse).build();
+		}
+
+		public void onReadResponse(ReadResponse msg){
+			System.out.println("Read value "+msg.value);
 		}
 	}
 
@@ -71,13 +94,17 @@ public class TwoPhaseBroadcast {
 		protected List<ActorRef> participants; // list of participant nodes
 		// protected Decision decision = null; // decision taken by this node
 		protected boolean isUpdated = false;
-		private final boolean iAmCoordinator = false;
-		private String value;
+		private boolean isCoordinator = false;
+		private int value ;
 		ActorRef sender;
 
 		public Node(final int id) {
 			super();
 			this.id = id;
+		}
+
+		int getId (){
+			return this.id ;
 		}
 
 		void setGroup(final StartMessage sm) {
@@ -97,11 +124,11 @@ public class TwoPhaseBroadcast {
 				p.tell(m, getSelf());
 		}
 
-//		void sendWriteOk(boolean isUpdated) {
-//			if (isUpdated) {
-//				return;
-//			}
-//		}
+		// void sendWriteOk(boolean isUpdated) {
+		// if (isUpdated) {
+		// return;
+		// }
+		// }
 
 		// a simple logging function
 		void print(final String s) {
@@ -118,6 +145,7 @@ public class TwoPhaseBroadcast {
 		public void OnReadRequest(final ReadRequest msg) {
 			getSender().tell(new ReadResponse(value), self());
 		}
+
 	}
 
 	/*-- Coordinator -----------------------------------------------------------*/
@@ -126,14 +154,16 @@ public class TwoPhaseBroadcast {
 
 		// here all the nodes that sent YES are collected
 		private final Set<ActorRef> majorityVoters = new HashSet<>();
-		public static int sequence_num ;
+		public static int sequence_num;
+
 		boolean Quorum() { // returns true if all voted YES
 			return majorityVoters.size() >= QUORUM_SIZE;
 		}
 
 		public Coordinator() {
 			super(-1); // the coordinator has the id -1
-			sequence_num = 0 ;
+			sequence_num = 0;
+			super.isCoordinator = true;
 		}
 
 		static public Props props() {
@@ -144,6 +174,7 @@ public class TwoPhaseBroadcast {
 		public Receive createReceive() {
 			return receiveBuilder().match(StartMessage.class, this::onStartMessage)
 					.match(UpdateRequest.class, this::onUpdateRequest)
+					.match(ReadRequest.class, this::OnReadRequest)
 					// .match(Timeout.class, this::onTimeout)
 					// .match(DecisionRequest.class, this::onDecisionRequest)
 					.build();
@@ -152,7 +183,7 @@ public class TwoPhaseBroadcast {
 		public void onStartMessage(final StartMessage msg) { /* Start */
 			setGroup(msg);
 			print("Sending vote request");
-			multicast(new UpdateRequest());
+			//multicast(new UpdateRequest()); // to correct
 			// multicastAndCrash(new VoteRequest(), 3000);
 			// setTimeout(VOTE_TIMEOUT);
 			// crash(5000);
@@ -184,6 +215,7 @@ public class TwoPhaseBroadcast {
 				return receiveBuilder().match(StartMessage.class, this::onStartMessage)
 						.match(UpdateResponse.class, this::onUpdateResponse)
 						.match(UpdateRequest.class, this::onUpdateRequest)
+						.match(ReadRequest.class, this::OnReadRequest)
 						// .match(Timeout.class, this::onTimeout)
 						// .match(Recovery.class, this::onRecovery)
 						.build();
@@ -207,36 +239,51 @@ public class TwoPhaseBroadcast {
 		}
 	}
 
-		/*-- Main ------------------------------------------------------------------*/
-		public static void main(final String[] args) {
-			
-			// Create the actor system
-			final ActorSystem system = ActorSystem.create("helloakka");
+	/*-- Main ------------------------------------------------------------------*/
+	public static void main(final String[] args) {
 
-			// Create the coordinator
-			final ActorRef coordinator = system.actorOf(Coordinator.props(), "coordinator");
+		// Create the actor system
+		final ActorSystem system = ActorSystem.create("helloakka");
 
-			// Create participants
-			final List<ActorRef> group = new ArrayList<>();
-			for (int i = 0; i < N_PARTICIPANTS; i++) {
-				group.add(system.actorOf(Participant.props(i), "participant" + i));
-			}
+		// Create the coordinator
+		final ActorRef coordinator = system.actorOf(Coordinator.props(), "coordinator");
+		System.out.println("Added cordinator node");
 
-			// Send start messages to the participants to inform them of the group
-			final StartMessage start = new StartMessage(group);
-			for (final ActorRef peer : group) {
-				peer.tell(start, null);
-			}
+		//Create external client
+		final ActorRef client = system.actorOf(externalClient.props(),"externalClient") ;
+		System.out.println("Added external client");		
 
-			// Send the start messages to the coordinator
-			coordinator.tell(start, null);
-
-			try {
-				System.out.println(">>> Press ENTER to exit <<<");
-				System.in.read();
-			} catch (final IOException ignored) {
-			}
-			system.terminate();
+		// Create participants
+		final List<ActorRef> group = new ArrayList<>();
+		for (int i = 0; i < N_PARTICIPANTS; i++) {
+			group.add(system.actorOf(Participant.props(i), "participant" + i));
+			System.out.println("Added node "+i+" to the group");
 		}
-		/******** External client */
+		System.out.println(group);
+		// Send start messages to the participants to inform them of the group
+		final StartMessage start = new StartMessage(group);
+		for (final ActorRef peer : group) {
+			System.out.println("Sending start message");
+			peer.tell(start, null);
+		}
+	
+		
+
+		// Send the start messages to the coordinator
+		coordinator.tell(start, null);
+		
+		
+		group.get(1).tell(new ReadRequest(), client);
+
+
+		try {
+			System.out.println(">>> Press ENTER to exit <<<");
+			System.in.read();
+		} catch (final IOException ignored) {
+		}
+		system.terminate();
+
+		
+	}
+	/******** External client */
 }
