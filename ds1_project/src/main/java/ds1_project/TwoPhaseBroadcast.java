@@ -1,9 +1,11 @@
 package ds1_project;
-
+import ds1_project.Requests.*;
+import ds1_project.TwoPhaseBroadcast.Coordinator.Participant;
 import akka.actor.ActorRef;
 import akka.actor.AbstractActor;
 import akka.actor.ActorSystem;
 import akka.actor.Props;
+import scala.None;
 import scala.concurrent.duration.Duration;
 
 import java.io.Serializable;
@@ -14,45 +16,52 @@ import java.util.List;
 import java.util.ArrayList;
 import java.lang.Thread;
 import java.util.Collections;
-
+import java.util.HashMap;
 import java.io.IOException;
 
+
 public class TwoPhaseBroadcast {
+	//Variables
 	final static int N_PARTICIPANTS = 5;
 	final static int REQUEST_TIMEOUT = 1000; // timeout for the votes, ms
 	//final static int DECISION_TIMEOUT = 2000; // timeout for the decision, ms
 	final static int QUORUM_SIZE = (N_PARTICIPANTS + 1) / 2; // the votes that the participants will send (for testing)
+	public static int epoch_global = 0 ;
+	public static HashSet<Integer> history = new HashSet<>() ;
 
 	// Start message that sends the list of participants to everyone
 	public static class StartMessage implements Serializable {
 		public final List<ActorRef> group;
 
-		public StartMessage(List<ActorRef> group) {
+		public StartMessage(final List<ActorRef> group) {
 			this.group = Collections.unmodifiableList(new ArrayList<>(group));
 		}
 	}
 
-	public static class UpdateRequest implements Serializable {
-	}
-
 	public static class UpdateResponse implements Serializable {
-		boolean WRITEOK = false;
+		public boolean WRITEOK = false;
 
-		public UpdateResponse(boolean WRITEOK) {
+		public UpdateResponse(final boolean WRITEOK) {
 			this.WRITEOK = WRITEOK;
 		}
 	}
 
-	public static class ReadRequest implements Serializable {
-	}
-
 	public static class ReadResponse implements Serializable {
-		String value;
+		public final String value;
 
-		public ReadResponse(String v) {
-			this.value = v;
+		public ReadResponse(final String value2) {
+			this.value = value2;
 		}
 
+	}
+
+	public static class key {
+		public static int[] keyparams;
+
+		public key(final int e, final int i){
+			keyparams [0] = e ;
+			keyparams [1] = i ;
+		}
 	}
 
 	/*-- Common functionality for both Coordinator and Participants ------------*/
@@ -62,18 +71,18 @@ public class TwoPhaseBroadcast {
 		protected List<ActorRef> participants; // list of participant nodes
 		// protected Decision decision = null; // decision taken by this node
 		protected boolean isUpdated = false;
-		private boolean iAmCoordinator = false;
+		private final boolean iAmCoordinator = false;
 		private String value;
 		ActorRef sender;
 
-		public Node(int id) {
+		public Node(final int id) {
 			super();
 			this.id = id;
 		}
 
-		void setGroup(StartMessage sm) {
+		void setGroup(final StartMessage sm) {
 			participants = new ArrayList<>();
-			for (ActorRef b : sm.group) {
+			for (final ActorRef b : sm.group) {
 				if (!b.equals(getSelf())) {
 
 					// copying all participant refs except for self
@@ -83,8 +92,8 @@ public class TwoPhaseBroadcast {
 			print("starting with " + sm.group.size() + " peer(s)");
 		}
 
-		void multicast(Serializable m) {
-			for (ActorRef p : participants)
+		void multicast(final Serializable m) {
+			for (final ActorRef p : participants)
 				p.tell(m, getSelf());
 		}
 
@@ -95,7 +104,7 @@ public class TwoPhaseBroadcast {
 //		}
 
 		// a simple logging function
-		void print(String s) {
+		void print(final String s) {
 			System.out.format("%2d: %s\n", id, s);
 		}
 
@@ -106,7 +115,7 @@ public class TwoPhaseBroadcast {
 			return receiveBuilder().build();
 		}
 
-		public void OnReadRequest(ReadRequest msg) {
+		public void OnReadRequest(final ReadRequest msg) {
 			getSender().tell(new ReadResponse(value), self());
 		}
 	}
@@ -117,13 +126,14 @@ public class TwoPhaseBroadcast {
 
 		// here all the nodes that sent YES are collected
 		private final Set<ActorRef> majorityVoters = new HashSet<>();
-
+		public static int sequence_num ;
 		boolean Quorum() { // returns true if all voted YES
 			return majorityVoters.size() >= QUORUM_SIZE;
 		}
 
 		public Coordinator() {
 			super(-1); // the coordinator has the id -1
+			sequence_num = 0 ;
 		}
 
 		static public Props props() {
@@ -139,7 +149,7 @@ public class TwoPhaseBroadcast {
 					.build();
 		}
 
-		public void onStartMessage(StartMessage msg) { /* Start */
+		public void onStartMessage(final StartMessage msg) { /* Start */
 			setGroup(msg);
 			print("Sending vote request");
 			multicast(new UpdateRequest());
@@ -148,7 +158,7 @@ public class TwoPhaseBroadcast {
 			// crash(5000);
 		}
 
-		public void onUpdateRequest(UpdateRequest msg) {
+		public void onUpdateRequest(final UpdateRequest msg) {
 			UpdateResponse res;
 			if (Quorum()) {
 				res = new UpdateResponse(true);
@@ -161,11 +171,11 @@ public class TwoPhaseBroadcast {
 		public static class Participant extends Node {
 			ActorRef coordinator;
 
-			public Participant(int id) {
+			public Participant(final int id) {
 				super(id);
 			}
 
-			static public Props props(int id) {
+			static public Props props(final int id) {
 				return Props.create(Participant.class, () -> new Participant(id));
 			}
 
@@ -179,41 +189,42 @@ public class TwoPhaseBroadcast {
 						.build();
 			}
 
-			public void onStartMessage(StartMessage msg) {
+			public void onStartMessage(final StartMessage msg) {
 				setGroup(msg);
 			}
 
-			public void onUpdateRequest(UpdateRequest msg) {
+			public void onUpdateRequest(final UpdateRequest msg) {
 				sender = getSender();
 				coordinator.tell(msg, self());
 
 			}
 
-			public void onUpdateResponse(UpdateResponse msg) {
+			public void onUpdateResponse(final UpdateResponse msg) {
 				if ((msg).WRITEOK) {
 					sender.tell(msg, getSelf());
 				}
 			}
 		}
+	}
 
 		/*-- Main ------------------------------------------------------------------*/
-		public static void main(String[] args) {
-
+		public static void main(final String[] args) {
+			
 			// Create the actor system
 			final ActorSystem system = ActorSystem.create("helloakka");
 
 			// Create the coordinator
-			ActorRef coordinator = system.actorOf(Coordinator.props(), "coordinator");
+			final ActorRef coordinator = system.actorOf(Coordinator.props(), "coordinator");
 
 			// Create participants
-			List<ActorRef> group = new ArrayList<>();
+			final List<ActorRef> group = new ArrayList<>();
 			for (int i = 0; i < N_PARTICIPANTS; i++) {
 				group.add(system.actorOf(Participant.props(i), "participant" + i));
 			}
 
 			// Send start messages to the participants to inform them of the group
-			StartMessage start = new StartMessage(group);
-			for (ActorRef peer : group) {
+			final StartMessage start = new StartMessage(group);
+			for (final ActorRef peer : group) {
 				peer.tell(start, null);
 			}
 
@@ -223,11 +234,9 @@ public class TwoPhaseBroadcast {
 			try {
 				System.out.println(">>> Press ENTER to exit <<<");
 				System.in.read();
-			} catch (IOException ignored) {
+			} catch (final IOException ignored) {
 			}
 			system.terminate();
 		}
 		/******** External client */
-
-	}
 }
