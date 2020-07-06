@@ -1,4 +1,4 @@
-package ds1_project;
+package ds1_project.Requests;
 
 import java.io.Serializable;
 
