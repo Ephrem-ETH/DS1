@@ -12,6 +12,7 @@ import scala.concurrent.duration.Duration;
 import java.io.Serializable;
 import java.util.concurrent.TimeUnit;
 
+
 import java.util.Set;
 import java.util.HashSet;
 import java.util.List;
@@ -28,8 +29,9 @@ public class TwoPhaseBroadcast {
 	// final static int DECISION_TIMEOUT = 2000; // timeout for the decision, ms
 	public final static int QUORUM_SIZE = (N_PARTICIPANTS + 1) / 2; // the votes that the participants will send (for testing)
 	public static int epoch_global = 0;
-
-	public static HashMap<Key, Integer> history = new HashMap<Key, Integer>();
+	public static int value;
+	public enum Acknowledge {ACK, NAK}
+	//public static HashMap<Key, Integer> history = new HashMap<Key, Integer>();
 
 	// Start message that sends the list of participants to everyone
 	public static class StartMessage implements Serializable {
@@ -39,7 +41,8 @@ public class TwoPhaseBroadcast {
 			this.group = Collections.unmodifiableList(new ArrayList<>(group));
 		}
 	}
-
+	
+	/*
 	public static class Key {
 		public static int[] keyparams;
 
@@ -49,7 +52,7 @@ public class TwoPhaseBroadcast {
 			keyparams[1] = i;
 		}
 	}
-
+*/
 	/*-- Main ------------------------------------------------------------------*/
 	public static void main(final String[] args) {
 

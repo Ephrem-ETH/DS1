@@ -14,6 +14,8 @@ import ds1_project.Responses.*;
 import java.io.Serializable;
 import java.util.concurrent.TimeUnit;
 
+
+
 import java.util.Set;
 import java.util.HashSet;
 import java.util.List;
@@ -29,11 +31,19 @@ public class Coordinator extends Node {
     private final Set<ActorRef> majorityVoters = new HashSet<>();
     public static int sequence_num;
     public static final int QUORUM_SIZE = ds1_project.TwoPhaseBroadcast.QUORUM_SIZE;
+    int epochs = 0;
+	int sequenceNum = 0;
+	int value;
 
     boolean Quorum(int size) { // returns true if all voted YES
         return majorityVoters.size() >= size;
     }
 
+    // Do we have majority nodes to ensure the update? 
+     boolean Quorum() { // returns true if all voted YES
+			return majorityVoters.size() >= QUORUM_SIZE;
+		}
+		
     public Coordinator(int quorum_size) {
         super(-1); // the coordinator has the id -1
         sequence_num = 0;
@@ -47,7 +57,9 @@ public class Coordinator extends Node {
     @Override
     public Receive createReceive() {
         return receiveBuilder().match(StartMessage.class, this::onStartMessage)
-                .match(UpdateRequest.class, this::onUpdateRequest).match(ReadRequest.class, this::OnReadRequest)
+                .match(UpdateRequest.class, this::onUpdateRequest)
+                .match(ReadRequest.class, this::OnReadRequest)
+                .match(Acknowledgement.class, this::onReceivingAck)
                 // .match(Timeout.class, this::onTimeout)
                 // .match(DecisionRequest.class, this::onDecisionRequest)
                 .build();
@@ -70,4 +82,17 @@ public class Coordinator extends Node {
         } else
             res = new UpdateResponse(false);
     }
+    public void onReceivingAck(Acknowledgement msg) {
+		
+		Acknowledge ack = (msg).ack;
+		
+		if(ack == Acknowledge.ACK) {
+			majorityVoters.add(getSender());
+		}
+		
+		if(Quorum()) {
+			multicast(new WriteOk(true));
+		}
+		
+	}
 }
