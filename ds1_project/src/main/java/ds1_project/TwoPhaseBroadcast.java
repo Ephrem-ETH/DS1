@@ -30,8 +30,8 @@ public class TwoPhaseBroadcast {
 	public final static int QUORUM_SIZE = (N_PARTICIPANTS + 1) / 2; // the votes that the participants will send (for testing)
 	public static int epoch_global = 0;
 	public static int value;
-	public enum Acknowledge {ACK, NAK}
-	//public static HashMap<Key, Integer> history = new HashMap<Key, Integer>();
+	public enum Acknowledge {ACK, NAK} //NAK for test purposes only
+	public static HashMap<Key, Integer> history = new HashMap<Key, Integer>();
 
 	// Start message that sends the list of participants to everyone
 	public static class StartMessage implements Serializable {
@@ -42,17 +42,16 @@ public class TwoPhaseBroadcast {
 		}
 	}
 	
-	/*
+
 	public static class Key {
 		public static int[] keyparams;
 
 		// epoch and sequence numbers
-		public Key(final int e, final int i) {
+		public Key(final int e, final int s) {
 			keyparams[0] = e;
-			keyparams[1] = i;
+			keyparams[1] = s;
 		}
 	}
-*/
 	/*-- Main ------------------------------------------------------------------*/
 	public static void main(final String[] args) {
 
@@ -85,6 +84,11 @@ public class TwoPhaseBroadcast {
 		coordinator.tell(start, null);
 
 		group.get(1).tell(new ReadRequest(), client);
+
+		coordinator.tell(new UpdateRequest(666), client);
+
+		group.get(1).tell(new ReadRequest(), client);
+
 
 		try {
 			System.out.println(">>> Press ENTER to exit <<<");

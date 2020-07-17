@@ -14,6 +14,7 @@ import ds1_project.Responses.*;
 public class Participant extends Node {
     ActorRef coordinator;
     int myvalue;
+    List<int[]> list = new ArrayList<int[]>(); //transform into hashmap : waiting list of updates - Maybe in Node class as the coordinator will also need it ?
 
     public Participant(final int id) {
         super(id);
@@ -26,7 +27,7 @@ public class Participant extends Node {
     @Override
     public Receive createReceive() {
         return receiveBuilder().match(StartMessage.class, this::onStartMessage)
-                .match(UpdateResponse.class, this::onUpdateResponse)
+                .match(WriteOk.class, this::onWriteOK)
                 .match(Update.class, this::onUpdate)
                 .match(UpdateRequest.class, this::onUpdateRequest)
                 .match(ReadRequest.class, this::OnReadRequest)
@@ -40,20 +41,22 @@ public class Participant extends Node {
     }
 
     public void onUpdateRequest(final UpdateRequest msg) {
-        setSender(getSender());
         coordinator.tell(msg, self());
-
     }
 
-    public void onUpdateResponse(final UpdateResponse msg) {
-        if ((msg).WRITEOK) {
-            this.getNodeSender().tell(msg, getSelf());
+    public void onWriteOK(final WriteOk msg) {
+        int epoch = msg.getRequest_id()[0];
+        int seq_num = msg.getRequest_id()[1];
+
+        for (int[] request : list){
+            if (request[0]==epoch && request[1]==seq_num){
+
+            }
         }
     }
+
 	public void onUpdate(Update msg) {      // Update propagates from coordinator
 		
-		List<int[]> list = new ArrayList<int[]>();
-         
 		if(!list.isEmpty()) {
 			
 			for(int i =0; i<= list.size();i++) {

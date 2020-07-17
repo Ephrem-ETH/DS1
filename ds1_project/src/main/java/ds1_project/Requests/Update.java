@@ -18,7 +18,4 @@ public  class Update implements Serializable {
 		this.keepSequence[1] = this.sequencenum;
 	}
 	
-	
-	
-	
 }

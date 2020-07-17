@@ -8,9 +8,13 @@ import ds1_project.TwoPhaseBroadcast.Acknowledge;
 public class Acknowledgement implements Serializable {
 	public final Acknowledge ack;
 
-	public Acknowledgement(Acknowledge ack) {
+	private int[] request_id ;
+
+	public Acknowledgement(Acknowledge ack, int [] request_id) {
 		super();
 		this.ack = ack;
+		this.request_id[0] = request_id[0] ;
+		this.request_id[1] = request_id[1] ;
 	}
 
 }
