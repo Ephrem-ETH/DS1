@@ -82,7 +82,7 @@ public class Coordinator extends Node {
 
         if (Quorum()) {
             System.out.println("Majority of ACK - Sending WriteOK messages");
-            multicast(new WriteOk(true));
+            multicast(new WriteOk(true, msg.getRequest_id()));
         }
 
         System.out.println("No majority - Aborting update");

@@ -17,4 +17,7 @@ public class Acknowledgement implements Serializable {
 		this.request_id[1] = request_id[1] ;
 	}
 
+	public int[] getRequest_id() {
+		return request_id;
+	}
 }
