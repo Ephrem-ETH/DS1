@@ -41,15 +41,13 @@ public class TwoPhaseBroadcast {
 			this.group = Collections.unmodifiableList(new ArrayList<>(group));
 		}
 	}
-	
-
 	public static class Key {
 		public static int[] keyparams;
 
 		// epoch and sequence numbers
 		public Key(final int e, final int s) {
-			keyparams[0] = e;
-			keyparams[1] = s;
+			int [] params = {e,s} ;
+			keyparams = params ;
 		}
 	}
 	/*-- Main ------------------------------------------------------------------*/
@@ -69,7 +67,7 @@ public class TwoPhaseBroadcast {
 		// Create participants
 		final List<ActorRef> group = new ArrayList<>();
 		for (int i = 0; i < N_PARTICIPANTS; i++) {
-			group.add(system.actorOf(Participant.props(i), "participant" + i));
+			group.add(system.actorOf(Participant.props(i,coordinator), "participant" + i));
 			System.out.println("Added node " + i + " to the group");
 		}
 		System.out.println(group);
@@ -86,6 +84,8 @@ public class TwoPhaseBroadcast {
 		group.get(1).tell(new ReadRequest(), client);
 
 		group.get(1).tell(new ReadRequest(), client);
+
+		coordinator.tell(new UpdateRequest(55), client);
 
 
 		try {

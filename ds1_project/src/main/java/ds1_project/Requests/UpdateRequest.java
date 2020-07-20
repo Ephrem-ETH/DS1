@@ -5,7 +5,7 @@ public class UpdateRequest extends Request {
      *
      */
     private static final long serialVersionUID = 1L;
-    public int value;
+    private int value;
 
 	public UpdateRequest(final int value){
 		super();
@@ -14,5 +14,9 @@ public class UpdateRequest extends Request {
 
 	public UpdateRequest() {
 		super();
+	}
+
+	public int getValue(){
+		return this.value ;
 	}
 }

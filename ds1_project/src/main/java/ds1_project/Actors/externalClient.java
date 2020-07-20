@@ -21,6 +21,6 @@ public class externalClient extends AbstractActor {
     }
 
     public void onReadResponse(ReadResponse msg){
-        System.out.println("Read value "+msg.getValue());
+        System.out.println("Client : Read value "+msg.getValue());
     }
 }

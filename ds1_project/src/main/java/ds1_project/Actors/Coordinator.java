@@ -58,6 +58,18 @@ public class Coordinator extends Node {
                 .build();
     }
 
+    public int getSequenceNum(){
+        return this.sequenceNum ;
+    }
+
+    public int getEpoch(){
+        return this.epochs ;
+    }
+
+    public void increaseEpoch(){
+        this.epochs = this.epochs +1 ;
+    }
+
     public void onStartMessage(final StartMessage msg) { /* Start */
         setGroup(msg);
         print("Sending vote request");
@@ -68,8 +80,9 @@ public class Coordinator extends Node {
     }
 
     public void onUpdateRequest(final UpdateRequest msg) {
-        System.out.println("Boadcasting update");
-        multicast(msg);
+        print("Boadcasting update");
+        Update update = new Update(this.epochs, this.sequenceNum +1 , msg.getValue());
+        multicast(update);
     }
 
     public void onReceivingAck(Acknowledgement msg) {
@@ -81,11 +94,12 @@ public class Coordinator extends Node {
         }
 
         if (Quorum()) {
-            System.out.println("Majority of ACK - Sending WriteOK messages");
-            multicast(new WriteOk(true, msg.getRequest_id()));
+            print("Majority of ACK - Sending WriteOK messages");
+            multicast(new WriteOk(true, msg.getRequest_epoch(),msg.getRequest_seqnum()));
+            sequenceNum = sequenceNum +1 ;
         }
 
-        System.out.println("No majority - Aborting update");
+        print("No majority - Aborting update");
 
     }
 }

@@ -1,21 +1,25 @@
-package ds1_project.Requests;
+package ds1_project.Responses;
 
 import java.io.Serializable;
 
 public  class Update implements Serializable {
 	
-	private int epochs;
-	private int sequencenum;
-	private int value;
-	private int [] keepSequence;
-	
-	public Update(int epochs, int sequencenum, int value) {
+	/**
+	 *
+	 */
+	private static final long serialVersionUID = 1L;
+	private final int epochs;
+	private final int sequencenum;
+	private final int value;
+	private final int[] keepSequence;
+
+	public Update(final int epochs, final int sequencenum, final int value) {
 		super();
 		this.epochs = epochs;
 		this.sequencenum = sequencenum;
 		this.value = value;
-		this.keepSequence[0] = this.epochs;
-		this.keepSequence[1] = this.sequencenum;
+		final int[] keepSequence = { this.epochs, this.sequencenum };
+		this.keepSequence = keepSequence ;
 	}
 
 	public int getEpochs(){
