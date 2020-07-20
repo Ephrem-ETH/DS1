@@ -6,6 +6,7 @@ import ds1_project.Requests.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import akka.actor.Actor;
 import akka.actor.ActorRef;
@@ -15,7 +16,6 @@ import ds1_project.Responses.*;
 
 public class Participant extends Node {
     private ActorRef coordinator;
-    int myvalue;
     private HashMap<Key,Integer> waitingList = new HashMap<Key,Integer>();
     List<int[]> list = new ArrayList<int[]>(); //transform into hashmap : waiting list of updates - Maybe in Node class as the coordinator will also need it ?
 
@@ -57,16 +57,16 @@ public class Participant extends Node {
     }
 
     public void onWriteOK(final WriteOk msg) {
+        print("Received WriteOk");
+
         int epoch = msg.getRequest_epoch();
         int seq_num = msg.getRequest_seqnum();
-
-        Key req_num = new Key(epoch,seq_num) ;
-
-        for (int[] request : list){
-            if (request[0]==epoch && request[1]==seq_num){
-                this.myvalue = waitingList.get(req_num) ;
-                print("Updated value");
-                waitingList.remove(req_num) ;
+        
+        for (Map.Entry<Key,Integer> entry : waitingList.entrySet()){
+            if (entry.getKey().getE()==epoch && entry.getKey().getS()==seq_num){
+                this.setValue(entry.getValue()) ;
+                print("Updated value :"+this.getValue());
+                waitingList.remove(entry.getKey()) ;
                 print("Update removed from queue");
             }
         }
@@ -76,6 +76,7 @@ public class Participant extends Node {
         
         Key request_id = new Key(msg.getEpochs(),msg.getSequenceNum()) ;
         waitingList.put(request_id, msg.getValue()) ;
+        print("queued value"+waitingList.get(request_id)) ;
         Acknowledgement acknowledgement = new Acknowledgement(Acknowledge.ACK, msg.getEpochs(), msg.getSequenceNum()) ;
         this.print(acknowledgement.toString());
         coordinator.tell(acknowledgement, getSelf());

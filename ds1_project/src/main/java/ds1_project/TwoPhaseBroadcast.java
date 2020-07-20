@@ -49,6 +49,14 @@ public class TwoPhaseBroadcast {
 			int [] params = {e,s} ;
 			keyparams = params ;
 		}
+
+		public int getE(){
+			return keyparams[0] ;
+		}
+
+		public int getS(){
+			return keyparams[1] ;
+		}
 	}
 	/*-- Main ------------------------------------------------------------------*/
 	public static void main(final String[] args) {
@@ -83,10 +91,16 @@ public class TwoPhaseBroadcast {
 
 		group.get(1).tell(new ReadRequest(), client);
 
-		group.get(1).tell(new ReadRequest(), client);
-
 		coordinator.tell(new UpdateRequest(55), client);
 
+
+		try {
+			System.out.println(">>> Press ENTER to continue <<<");
+			System.in.read();
+		} catch (final IOException ignored) {
+		}
+
+		group.get(1).tell(new ReadRequest(), client);
 
 		try {
 			System.out.println(">>> Press ENTER to exit <<<");

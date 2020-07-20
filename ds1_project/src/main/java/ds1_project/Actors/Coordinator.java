@@ -98,8 +98,5 @@ public class Coordinator extends Node {
             multicast(new WriteOk(true, msg.getRequest_epoch(),msg.getRequest_seqnum()));
             sequenceNum = sequenceNum +1 ;
         }
-
-        print("No majority - Aborting update");
-
     }
 }
