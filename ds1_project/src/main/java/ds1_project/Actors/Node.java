@@ -8,6 +8,7 @@ import ds1_project.Requests.*;
 import java.io.Serializable;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.HashMap;
 
 /*-- Common functionality for both Coordinator and Participants ------------*/
 
@@ -19,6 +20,7 @@ public abstract class Node extends AbstractActor {
     private boolean isCoordinator = false;
     private int value;
     private ActorRef sender;
+
 
     public Node(final int id) {
         super();

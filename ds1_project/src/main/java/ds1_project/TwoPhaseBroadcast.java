@@ -57,6 +57,11 @@ public class TwoPhaseBroadcast {
 		public int getS(){
 			return keyparams[1] ;
 		}
+
+		@Override
+		public boolean equals(Object obj) {
+			return (this.getE()==((Key)obj).getE() && ((Key)obj).getS()==this.getS());
+		}
 	}
 	/*-- Main ------------------------------------------------------------------*/
 	public static void main(final String[] args) {
@@ -101,6 +106,8 @@ public class TwoPhaseBroadcast {
 		}
 
 		group.get(1).tell(new ReadRequest(), client);
+		coordinator.tell(new ReadRequest(), client);
+
 
 		try {
 			System.out.println(">>> Press ENTER to exit <<<");

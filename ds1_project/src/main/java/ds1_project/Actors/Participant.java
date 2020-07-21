@@ -17,7 +17,7 @@ import ds1_project.Responses.*;
 public class Participant extends Node {
     private ActorRef coordinator;
     private HashMap<Key,Integer> waitingList = new HashMap<Key,Integer>();
-    List<int[]> list = new ArrayList<int[]>(); //transform into hashmap : waiting list of updates - Maybe in Node class as the coordinator will also need it ?
+    //List<int[]> list = new ArrayList<int[]>(); //transform into hashmap : waiting list of updates - Maybe in Node class as the coordinator will also need it ?
 
     public Participant(final int id, ActorRef coord) {
         super(id);
