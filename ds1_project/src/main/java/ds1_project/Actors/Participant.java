@@ -1,5 +1,6 @@
 package ds1_project.Actors;
 
+import ds1_project.Key;
 import ds1_project.TwoPhaseBroadcast.*;
 import ds1_project.Requests.*;
 
@@ -57,19 +58,23 @@ public class Participant extends Node {
     }
 
     public void onWriteOK(final WriteOk msg) {
-        print("Received WriteOk");
+        print("Received WriteOk for e="+msg.getRequest_epoch()+" and s="+msg.getRequest_seqnum());
 
         int epoch = msg.getRequest_epoch();
         int seq_num = msg.getRequest_seqnum();
+        Key removeKey = new Key(msg.getRequest_epoch(),msg.getRequest_seqnum());
         
         for (Map.Entry<Key,Integer> entry : waitingList.entrySet()){
-            if (entry.getKey().getE()==epoch && entry.getKey().getS()==seq_num){
+            if (entry.getKey().equals(removeKey)){
                 this.setValue(entry.getValue()) ;
                 print("Updated value :"+this.getValue());
-                waitingList.remove(entry.getKey()) ;
-                print("Update removed from queue");
+                removeKey = entry.getKey() ;
+                //waitingList.remove(entry.getKey()) ;
+                //print("Update removed from queue");
             }
         }
+        waitingList.remove(removeKey) ;
+        print("Update removed from queue");
     }
 
 	public void onUpdate(Update msg) {      // Update propagates from coordinator
@@ -78,7 +83,6 @@ public class Participant extends Node {
         waitingList.put(request_id, msg.getValue()) ;
         print("queued value"+waitingList.get(request_id)) ;
         Acknowledgement acknowledgement = new Acknowledgement(Acknowledge.ACK, msg.getEpochs(), msg.getSequenceNum()) ;
-        this.print(acknowledgement.toString());
         coordinator.tell(acknowledgement, getSelf());
         this.print("ACK sent");
 	}

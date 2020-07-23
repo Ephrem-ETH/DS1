@@ -41,28 +41,6 @@ public class TwoPhaseBroadcast {
 			this.group = Collections.unmodifiableList(new ArrayList<>(group));
 		}
 	}
-	public static class Key {
-		public static int[] keyparams;
-
-		// epoch and sequence numbers
-		public Key(final int e, final int s) {
-			int [] params = {e,s} ;
-			keyparams = params ;
-		}
-
-		public int getE(){
-			return keyparams[0] ;
-		}
-
-		public int getS(){
-			return keyparams[1] ;
-		}
-
-		@Override
-		public boolean equals(Object obj) {
-			return (this.getE()==((Key)obj).getE() && ((Key)obj).getS()==this.getS());
-		}
-	}
 	/*-- Main ------------------------------------------------------------------*/
 	public static void main(final String[] args) {
 
@@ -94,10 +72,17 @@ public class TwoPhaseBroadcast {
 		// Send the start messages to the coordinator
 		coordinator.tell(start, null);
 
+		try {
+			System.out.println(">>> Press ENTER to continue <<<");
+			System.in.read();
+		} catch (final IOException ignored) {
+		}
+
 		group.get(1).tell(new ReadRequest(), client);
 
 		coordinator.tell(new UpdateRequest(55), client);
-
+		coordinator.tell(new ReadRequest(), client);
+		group.get(2).tell(new UpdateRequest(15), client);
 
 		try {
 			System.out.println(">>> Press ENTER to continue <<<");
@@ -106,7 +91,20 @@ public class TwoPhaseBroadcast {
 		}
 
 		group.get(1).tell(new ReadRequest(), client);
+		
+
+		try {
+			System.out.println(">>> Press ENTER to continue <<<");
+			System.in.read();
+		} catch (final IOException ignored) {
+		}
 		coordinator.tell(new ReadRequest(), client);
+		group.get(0).tell(new ReadRequest(), client);
+		group.get(1).tell(new ReadRequest(), client);
+		group.get(2).tell(new ReadRequest(), client);
+		group.get(3).tell(new ReadRequest(), client);
+		group.get(4).tell(new ReadRequest(), client);
+
 
 
 		try {
