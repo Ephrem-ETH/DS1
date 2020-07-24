@@ -12,7 +12,6 @@ import scala.concurrent.duration.Duration;
 import java.io.Serializable;
 import java.util.concurrent.TimeUnit;
 
-
 import java.util.Set;
 import java.util.HashSet;
 import java.util.List;
@@ -27,10 +26,15 @@ public class TwoPhaseBroadcast {
 	public final static int N_PARTICIPANTS = 5;
 	public final static int REQUEST_TIMEOUT = 1000; // timeout for the votes, ms
 	// final static int DECISION_TIMEOUT = 2000; // timeout for the decision, ms
-	public final static int QUORUM_SIZE = (N_PARTICIPANTS + 1) / 2; // the votes that the participants will send (for testing)
+	public final static int QUORUM_SIZE = (N_PARTICIPANTS + 1) / 2; // the votes that the participants will send (for
+																	// testing)
 	public static int epoch_global = 0;
 	public static int value;
-	public enum Acknowledge {ACK, NAK} //NAK for test purposes only
+
+	public enum Acknowledge {
+		ACK, NAK
+	} // NAK for test purposes only
+
 	public static HashMap<Key, Integer> history = new HashMap<Key, Integer>();
 
 	// Start message that sends the list of participants to everyone
@@ -41,6 +45,32 @@ public class TwoPhaseBroadcast {
 			this.group = Collections.unmodifiableList(new ArrayList<>(group));
 		}
 	}
+
+
+	public static class Key {
+		public static int[] keyparams;
+
+		// epoch and sequence numbers
+		public Key(final int e, final int s) {
+			int[] params = { e, s };
+			keyparams = params;
+		}
+
+		public int getE() {
+			return keyparams[0];
+		}
+
+		public int getS() {
+			return keyparams[1];
+		}
+
+		@Override
+		public boolean equals(Object obj) {
+			return (this.getE() == ((Key) obj).getE() && ((Key) obj).getS() == this.getS());
+		}
+	}
+
+
 	/*-- Main ------------------------------------------------------------------*/
 	public static void main(final String[] args) {
 
@@ -58,7 +88,7 @@ public class TwoPhaseBroadcast {
 		// Create participants
 		final List<ActorRef> group = new ArrayList<>();
 		for (int i = 0; i < N_PARTICIPANTS; i++) {
-			group.add(system.actorOf(Participant.props(i,coordinator), "participant" + i));
+			group.add(system.actorOf(Participant.props(i, coordinator), "participant" + i));
 			System.out.println("Added node " + i + " to the group");
 		}
 		System.out.println(group);
@@ -81,8 +111,10 @@ public class TwoPhaseBroadcast {
 		group.get(1).tell(new ReadRequest(), client);
 
 		coordinator.tell(new UpdateRequest(55), client);
+
 		coordinator.tell(new ReadRequest(), client);
 		group.get(2).tell(new UpdateRequest(15), client);
+
 
 		try {
 			System.out.println(">>> Press ENTER to continue <<<");
@@ -104,7 +136,6 @@ public class TwoPhaseBroadcast {
 		group.get(2).tell(new ReadRequest(), client);
 		group.get(3).tell(new ReadRequest(), client);
 		group.get(4).tell(new ReadRequest(), client);
-
 
 
 		try {

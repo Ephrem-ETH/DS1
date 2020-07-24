@@ -2,7 +2,7 @@ package ds1_project.Responses;
 
 import java.io.Serializable;
 
-public class WriteOk implements Serializable{
+public class WriteOk implements Serializable {
 
 	/**
 	 *
@@ -15,7 +15,7 @@ public class WriteOk implements Serializable{
 	public WriteOk(final boolean writeOk, final int request_epoch, final int request_seqnum) {
 		this.writeOk = writeOk;
 		this.request_epoch = request_epoch;
-		this.request_seqnum = request_seqnum ;
+		this.request_seqnum = request_seqnum;
 	}
 
 	public int getRequest_epoch() {

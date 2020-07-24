@@ -2,8 +2,8 @@ package ds1_project.Responses;
 
 import java.io.Serializable;
 
-public  class Update implements Serializable {
-	
+public class Update implements Serializable {
+
 	/**
 	 *
 	 */
@@ -19,23 +19,23 @@ public  class Update implements Serializable {
 		this.sequencenum = sequencenum;
 		this.value = value;
 		final int[] keepSequence = { this.epochs, this.sequencenum };
-		this.keepSequence = keepSequence ;
+		this.keepSequence = keepSequence;
 	}
 
-	public int getEpochs(){
-		return this.epochs ;
+	public int getEpochs() {
+		return this.epochs;
 	}
 
-	public int getSequenceNum(){
+	public int getSequenceNum() {
 		return this.sequencenum;
 	}
 
-	public int getValue(){
+	public int getValue() {
 		return this.value;
 	}
 
-	public int[] getKeepSequence(){
-		return this.keepSequence ;
+	public int[] getKeepSequence() {
+		return this.keepSequence;
 	}
-	
+
 }

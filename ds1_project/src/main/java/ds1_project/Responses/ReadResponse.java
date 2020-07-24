@@ -4,19 +4,19 @@ import java.io.Serializable;
 
 public class ReadResponse implements Serializable {
 
-    /**
-     *
-     */
-    private static final long serialVersionUID = 1L;
-    
-    private final int value;
+	/**
+	 *
+	 */
+	private static final long serialVersionUID = 1L;
 
-    public int getValue(){
-        return this.value ;
-    }
+	private final int value;
 
-    public ReadResponse(final int value2) {
-        this.value = value2;
-    }
+	public int getValue() {
+		return this.value;
+	}
+
+	public ReadResponse(final int value2) {
+		this.value = value2;
+	}
 
 }

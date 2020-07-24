@@ -20,8 +20,8 @@ public class Acknowledgement implements Serializable {
 	public Acknowledgement(final Acknowledge ack, final int request_epoch, final int request_seqnum) {
 		super();
 		this.ack = ack;
-		this.request_epoch = request_epoch ;
-		this.request_seqnum = request_seqnum ;
+		this.request_epoch = request_epoch;
+		this.request_seqnum = request_seqnum;
 	}
 
 	public int getRequest_epoch() {
@@ -34,6 +34,6 @@ public class Acknowledgement implements Serializable {
 
 	@Override
 	public String toString() {
-		return "epoch : "+this.request_epoch + " ; seqnum : "+this.request_seqnum ;
+		return "epoch : " + this.request_epoch + " ; seqnum : " + this.request_seqnum;
 	}
 }
