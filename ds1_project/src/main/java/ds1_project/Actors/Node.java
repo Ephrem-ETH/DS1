@@ -7,13 +7,16 @@ import akka.actor.AbstractActor;
 import ds1_project.TwoPhaseBroadcast.*;
 import scala.concurrent.duration.Duration;
 import ds1_project.Responses.*;
+import ds1_project.Key;
 import ds1_project.Requests.*;
 import java.io.Serializable;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 
 /*-- Common functionality for both Coordinator and Participants ------------*/
 
@@ -26,6 +29,7 @@ public abstract class Node extends AbstractActor {
 	private int value;
 	private ActorRef sender;
 	protected Cancellable currentTimeout;
+	
 
 	public enum toMessages {
 		UPDATE, WRITEOK, HEARTBEAT

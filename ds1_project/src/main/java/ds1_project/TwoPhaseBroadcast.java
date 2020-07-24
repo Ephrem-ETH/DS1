@@ -109,11 +109,12 @@ public class TwoPhaseBroadcast {
 		}
 
 		group.get(1).tell(new ReadRequest(), client);
-
+        
 		coordinator.tell(new UpdateRequest(55), client);
 
 		coordinator.tell(new ReadRequest(), client);
 		group.get(2).tell(new UpdateRequest(15), client);
+		group.get(1).tell(new UpdateRequest(10), client);
 
 
 		try {

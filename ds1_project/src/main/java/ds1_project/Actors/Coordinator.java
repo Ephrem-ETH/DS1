@@ -18,6 +18,7 @@ import java.util.concurrent.TimeUnit;
 
 import java.util.Set;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.ArrayList;
@@ -30,12 +31,11 @@ public class Coordinator extends Node {
 
 	// here all the nodes that sent YES are collected
 	private final HashMap<Key, HashSet<ActorRef>> majorityVoters = new HashMap<Key, HashSet<ActorRef>>();
-	public static int sequence_num;
 	public static final int QUORUM_SIZE = ds1_project.TwoPhaseBroadcast.QUORUM_SIZE;
-	private HashMap<Key, Integer> waitingList = new HashMap<Key, Integer>();
-	int epochs = 0;
-	int sequenceNum = 0;
-	int value;
+	private LinkedHashMap<Key, Integer> waitingList = new LinkedHashMap<Key, Integer>();
+	private int epochs = 0;
+	private int sequenceNum = 0;
+	private int value;
 	boolean quorum = false;
 
 	// Do we have majority nodes to ensure the update?
@@ -47,14 +47,14 @@ public class Coordinator extends Node {
 		}
 	}
 
-	public Coordinator(int quorum_size) {
+	public Coordinator() {
 		super(-1); // the coordinator has the id -1
-		sequence_num = 0;
+		sequenceNum = 0;
 		super.setCoordinator(true);
 	}
 
 	static public Props props() {
-		return Props.create(Coordinator.class, () -> new Coordinator(QUORUM_SIZE));
+		return Props.create(Coordinator.class, () -> new Coordinator());
 	}
 
 	@Override
@@ -73,6 +73,9 @@ public class Coordinator extends Node {
 
 	public int getEpoch() {
 		return this.epochs;
+	}
+	public void increaseSequenceNum() {
+		this.sequenceNum = this.sequenceNum + 1;
 	}
 
 	public void increaseEpoch() {
@@ -94,29 +97,31 @@ public class Coordinator extends Node {
 	}
 
 	public void onUpdateRequest(final UpdateRequest msg) {
-		delay();
+		//delay(5000);
 		int currentSeqNum = this.sequenceNum;
-		for (Key lastkey : this.waitingList.keySet()) {
+		for (Key lastkey : waitingList.keySet()) {
 			if (lastkey.getE() == this.epochs && lastkey.getS() > currentSeqNum) {
 				currentSeqNum = lastkey.getS();
 			}
 		}
-		print("Broadcasting update with sequence number = " + (currentSeqNum + 1));
-		Update update = new Update(this.epochs, currentSeqNum + 1, msg.getValue()); // get max of queue +1 instead
+		
+		print("Broadcasting update with sequence number = " +  (currentSeqNum+1) + ":"+ msg.getValue());
+		Update update = new Update(this.epochs, currentSeqNum +1, msg.getValue()); // get max of queue +1 instead
 																				// sequencenum +1
 		multicast(update);
-		waitingList.put(new Key(update.getEpochs(), update.getSequenceNum()), update.getValue());
+		waitingList.put(new Key(this.epochs, update.getSequenceNum()), update.getValue());
+		
 	}
 
 
 	public void onReceivingAck(Acknowledgement msg) {
-		delay();
+		//delay();
 		Acknowledge ack = (msg).ack;
 		Key key = new Key(msg.getRequest_epoch(), msg.getRequest_seqnum());
 		HashSet<ActorRef> voters = new HashSet<>();
 		boolean flag = false;
 
-		if (ack == Acknowledge.ACK && msg.getRequest_seqnum() > this.sequenceNum) {
+		/*if (ack == Acknowledge.ACK) {
 
 			for (Map.Entry<Key, HashSet<ActorRef>> entry : majorityVoters.entrySet()) {
 				if (entry.getKey().equals(key)) {
@@ -128,7 +133,7 @@ public class Coordinator extends Node {
 			if (!flag) {
 				voters.add(getSender());
 				majorityVoters.put(key, voters);
-			}
+			}*/
 
 			if (ack == Acknowledge.ACK) {
 
@@ -147,9 +152,9 @@ public class Coordinator extends Node {
 				print("Received ACKs :" + majorityVoters.get(key).size());
 				//crash();
 			}
-		}
+	//}
 
-		if (Quorum(key) && msg.getRequest_seqnum() > this.sequenceNum) {
+		if (Quorum(key) ) {
 
 			print("Majority of ACK - Sending WriteOK messages for s=" + msg.getRequest_seqnum());
 			multicast(new WriteOk(true, msg.getRequest_epoch(), msg.getRequest_seqnum()));
