@@ -103,7 +103,7 @@ public class Coordinator extends Node {
 		}
 		print("Broadcasting update with sequence number = " + (currentSeqNum + 1));
 		Update update = new Update(this.epochs, currentSeqNum + 1, msg.getValue()); // get max of queue +1 instead
-																					// sequencenum +1
+																				// sequencenum +1
 		multicast(update);
 		waitingList.put(new Key(update.getEpochs(), update.getSequenceNum()), update.getValue());
 	}
@@ -145,6 +145,7 @@ public class Coordinator extends Node {
 				}
 
 				print("Received ACKs :" + majorityVoters.get(key).size());
+				//crash();
 			}
 		}
 
