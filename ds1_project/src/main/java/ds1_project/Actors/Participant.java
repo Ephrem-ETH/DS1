@@ -60,8 +60,6 @@ public class Participant extends Node {
     public void onWriteOK(final WriteOk msg) {
         print("Received WriteOk for e="+msg.getRequest_epoch()+" and s="+msg.getRequest_seqnum());
 
-        int epoch = msg.getRequest_epoch();
-        int seq_num = msg.getRequest_seqnum();
         Key removeKey = new Key(msg.getRequest_epoch(),msg.getRequest_seqnum());
         
         for (Map.Entry<Key,Integer> entry : waitingList.entrySet()){

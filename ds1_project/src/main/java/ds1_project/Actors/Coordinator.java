@@ -131,7 +131,7 @@ public class Coordinator extends Node {
                     key = entry.getKey() ;
                     //waitingList.remove(entry.getKey());
                     //print("Update removed from queue");
-                    sequenceNum = sequenceNum + 1;
+                    sequenceNum = msg.getRequest_seqnum();
                 }
             }
             waitingList.remove(key);
