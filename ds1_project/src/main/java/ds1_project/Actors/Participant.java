@@ -18,16 +18,10 @@ import ds1_project.Responses.*;
 public class Participant extends Node {
 	private ActorRef coordinator;
 	private HashMap<Key, Integer> waitingList = new HashMap<Key, Integer>();
-	// List<int[]> list = new ArrayList<int[]>(); //transform into hashmap : waiting
-	// list of updates - Maybe in Node class as the coordinator will also need it ?
-	private boolean isWriteOkReceived = false; // true if writeok message is received on time after update
-	private boolean isUpdateReceived = false; // true if update message is received on time after update request
-												// forwarding to coordinator
+	// forwarding to coordinator
 	final static int WRITEOK_TIMEOUT = 2000;
 	final static int UPDATE_TIMEOUT = 3000;
-	//private final Random rnd;
-
-	
+	// private final Random rnd;
 
 	public Participant(final int id, ActorRef coord) {
 		super(id);
@@ -42,8 +36,7 @@ public class Participant extends Node {
 	public Receive createReceive() {
 		return receiveBuilder().match(StartMessage.class, this::onStartMessage).match(WriteOk.class, this::onWriteOK)
 				.match(Update.class, this::onUpdate).match(UpdateRequest.class, this::onUpdateRequest)
-				.match(ReadRequest.class, this::OnReadRequest)
-				// .match(Timeout.class, this::onTimeout)
+				.match(ReadRequest.class, this::OnReadRequest).match(Timeout.class, this::onTimeout)
 				// .match(Recovery.class, this::onRecovery)
 				.build();
 	}
@@ -66,10 +59,12 @@ public class Participant extends Node {
 	}
 
 	public void onWriteOK(final WriteOk msg) {
+		delay();
+		if (this.currentTimeout != null) {
+			this.currentTimeout.cancel();
+		}
 		print("Received WriteOk for e=" + msg.getRequest_epoch() + " and s=" + msg.getRequest_seqnum());
 
-		int epoch = msg.getRequest_epoch();
-		int seq_num = msg.getRequest_seqnum();
 		Key removeKey = new Key(msg.getRequest_epoch(), msg.getRequest_seqnum());
 
 		for (Map.Entry<Key, Integer> entry : waitingList.entrySet()) {
@@ -77,8 +72,6 @@ public class Participant extends Node {
 				this.setValue(entry.getValue());
 				print("Updated value :" + this.getValue());
 				removeKey = entry.getKey();
-				// waitingList.remove(entry.getKey()) ;
-				// print("Update removed from queue");
 			}
 		}
 		waitingList.remove(removeKey);
@@ -86,7 +79,10 @@ public class Participant extends Node {
 	}
 
 	public void onUpdate(Update msg) { // Update propagates from coordinator
-        delay();
+		delay();
+		if (this.currentTimeout != null) {
+			this.currentTimeout.cancel();
+		}
 		Key request_id = new Key(msg.getEpochs(), msg.getSequenceNum());
 		waitingList.put(request_id, msg.getValue());
 		print("queued value" + waitingList.get(request_id));
@@ -94,48 +90,7 @@ public class Participant extends Node {
 		coordinator.tell(acknowledgement, getSelf());
 		this.print("ACK sent");
 		setTimeout(WRITEOK_TIMEOUT, toMessages.WRITEOK);
-
 	}
-
-	/*static public Props props(final int id, ActorRef coord) {
-		return Props.create(Participant.class, () -> new Participant(id, coord));
-	}
-
-	@Override
-	public Receive createReceive() {
-		return receiveBuilder().match(StartMessage.class, this::onStartMessage).match(WriteOk.class, this::onWriteOK)
-				.match(Update.class, this::onUpdate).match(UpdateRequest.class, this::onUpdateRequest)
-				.match(ReadRequest.class, this::OnReadRequest).match(Timeout.class, this::onTimeout)
-				// .match(Recovery.class, this::onRecovery)
-				.build();
-	}
-
-	/*
-	 * public void setCoordinator(ActorRef coord) { this.coordinator = coord; }
-	 * 
-	 * public ActorRef getCoordinator() { return this.coordinator; }
-	 * 
-	 * public void onStartMessage(final StartMessage msg) { setGroup(msg); }
-	 */
-
-	/*
-	 * public void onUpdateRequest(final UpdateRequest msg) {
-	 * setSender(getSender());
-	 * 
-	 * coordinator.tell(msg, self()); setTimeout(UPDATE_TIMEOUT, toMessages.UPDATE);
-	 * }
-	 */
-
-	/*
-	 * public void onWriteOK(final WriteOk msg) { delay(); currentTimeout.cancel();
-	 * print("Received WriteOk"); isWriteOkReceived = true; int epoch =
-	 * msg.getRequest_epoch(); int seq_num = msg.getRequest_seqnum();
-	 * 
-	 * for (Map.Entry<Key, Integer> entry : waitingList.entrySet()) { if
-	 * (entry.getKey().getE() == epoch && entry.getKey().getS() == seq_num) {
-	 * this.setValue(entry.getValue()); print("Updated value :" + this.getValue());
-	 * waitingList.remove(entry.getKey()); print("Update removed from queue"); } } }
-	 */
 
 	public void onTimeout(Timeout msg) {
 
@@ -157,15 +112,5 @@ public class Participant extends Node {
 		}
 
 	}
-	/*
-	 * public void onUpdate(Update msg) { // Update propagates from coordinator
-	 * delay(); Key request_id = new Key(msg.getEpochs(), msg.getSequenceNum());
-	 * waitingList.put(request_id, msg.getValue()); print("queued value" +
-	 * waitingList.get(request_id)); Acknowledgement acknowledgement = new
-	 * Acknowledgement(Acknowledge.ACK, msg.getEpochs(), msg.getSequenceNum());
-	 * this.print(acknowledgement.toString()); coordinator.tell(acknowledgement,
-	 * getSelf()); this.print("ACK sent"); setTimeout(WRITEOK_TIMEOUT,
-	 * toMessages.WRITEOK); }
-	 */
 
 }

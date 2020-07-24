@@ -87,6 +87,19 @@ public abstract class Node extends AbstractActor {
 		}
 	}
 
+	void delay(int d) { // emulate a delay of d milliseconds
+		try {
+			Thread.sleep(d);
+		} catch (Exception ignored) {
+		}
+	}
+
+	void delay() { // A random communication delay
+		Random rnd = new Random();
+		int d = rnd.nextInt(90) + 10;
+		delay(d);
+	}
+
 	// a multicast implementation that crashes after sending the update to the
 	// cohorts
 	/*
@@ -104,26 +117,11 @@ public abstract class Node extends AbstractActor {
 	 * getContext().system().dispatcher(), getSelf() ); }
 	 */
 
-	// emulate a delay of d milliseconds
-	void delay(int d) {
-		try {
-			Thread.sleep(d);
-		} catch (Exception ignored) {
-		}
-	}
-	void delay() {
-		Random rnd =new Random();
-		int d = rnd.nextInt(90)+10;
-		delay(d);
-	}
-
 	// schedule a Timeout message in specified time
 	void setTimeout(int time, toMessages toMess) {
-	
-		this.currentTimeout = getContext().system().scheduler().scheduleOnce(Duration.create(time, TimeUnit.MILLISECONDS), getSelf(),
-				new Timeout(toMess), // the message to send
+		this.currentTimeout = getContext().system().scheduler().scheduleOnce(
+				Duration.create(time, TimeUnit.MILLISECONDS), getSelf(), new Timeout(toMess), // the message to send
 				getContext().system().dispatcher(), getSelf());
-		
 	}
 
 	// a simple logging function
