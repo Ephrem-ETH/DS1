@@ -60,10 +60,10 @@ public class Coordinator extends Node {
 	@Override
 	public Receive createReceive() {
 		return receiveBuilder().match(StartMessage.class, this::onStartMessage)
-				.match(UpdateRequest.class, this::onUpdateRequest).match(ReadRequest.class, this::OnReadRequest)
+				.match(UpdateRequest.class, this::onUpdateRequest)
+				.match(ReadRequest.class, this::OnReadRequest)
 				.match(Acknowledgement.class, this::onReceivingAck)
 				// .match(Timeout.class, this::onTimeout)
-				// .match(DecisionRequest.class, this::onDecisionRequest)
 				.build();
 	}
 
@@ -84,11 +84,7 @@ public class Coordinator extends Node {
 
 	public void onStartMessage(final StartMessage msg) { /* Start */
 		setGroup(msg);
-		// print("Sending vote request");
-		// multicast(new UpdateRequest()); // to correct
-		// multicastAndCrash(new VoteRequest(), 3000);
-		// setTimeout(VOTE_TIMEOUT);
-		// crash(5000);
+		;
 	}
 	
 	public void crash() {
@@ -97,7 +93,7 @@ public class Coordinator extends Node {
 	}
 
 	public void onUpdateRequest(final UpdateRequest msg) {
-		//delay(5000);
+		delay();
 		int currentSeqNum = this.sequenceNum;
 		for (Key lastkey : waitingList.keySet()) {
 			if (lastkey.getE() == this.epochs && lastkey.getS() > currentSeqNum) {
@@ -115,13 +111,13 @@ public class Coordinator extends Node {
 
 
 	public void onReceivingAck(Acknowledgement msg) {
-		//delay();
+		delay();
 		Acknowledge ack = (msg).ack;
 		Key key = new Key(msg.getRequest_epoch(), msg.getRequest_seqnum());
 		HashSet<ActorRef> voters = new HashSet<>();
 		boolean flag = false;
 
-		/*if (ack == Acknowledge.ACK) {
+		if (ack == Acknowledge.ACK && msg.getRequest_seqnum() > this.sequenceNum) {
 
 			for (Map.Entry<Key, HashSet<ActorRef>> entry : majorityVoters.entrySet()) {
 				if (entry.getKey().equals(key)) {
@@ -133,28 +129,16 @@ public class Coordinator extends Node {
 			if (!flag) {
 				voters.add(getSender());
 				majorityVoters.put(key, voters);
-			}*/
+			}
 
-			if (ack == Acknowledge.ACK) {
-
-				for (Map.Entry<Key, HashSet<ActorRef>> entry : majorityVoters.entrySet()) {
-					if (entry.getKey().getE() == key.getE() && entry.getKey().getS() == key.getS()) {
-						key = entry.getKey();
-						entry.getValue().add(getSender());
-						flag = true;
-					}
-				}
-				if (!flag) {
-					voters.add(getSender());
-					majorityVoters.put(key, voters);
-				}
+			
 
 				print("Received ACKs :" + majorityVoters.get(key).size());
 				//crash();
 			}
-	//}
+	
 
-		if (Quorum(key) ) {
+		if (Quorum(key) && msg.getRequest_seqnum() > this.sequenceNum ) {
 
 			print("Majority of ACK - Sending WriteOK messages for s=" + msg.getRequest_seqnum());
 			multicast(new WriteOk(true, msg.getRequest_epoch(), msg.getRequest_seqnum()));
@@ -172,21 +156,6 @@ public class Coordinator extends Node {
 		}
 	}
 
-	/*
-	 * @Override public void onRecovery(Recovery msg) {
-	 * getContext().become(createReceive()); if (!writeOk_Sent && quorum) {
-	 * print("recovering, writeOk is not sent but reaches quorum"); multicast(new
-	 * WriteOk(true, msg.getEpochs(), msg.getSeqnum()));
-	 * 
-	 * } else if(!writeOk_Sent && !quorum) {
-	 * print("recovering, quorum is not reached and writeOk is also not sent"); }
-	 * else if(!updateBroadcasted){ print("recovering,  update is not broadcasted");
-	 * Update update = new Update(this.epochs, this.sequenceNum + 1,
-	 * msg.getValue()); multicast(update); waitingList.put(new
-	 * Key(update.getEpochs(), update.getSequenceNum()), update.getValue());
-	 * sequenceNum = sequenceNum + 1;
-	 * 
-	 * } else { print(" Not recovering"); } }
-	 */
+	
 
 }

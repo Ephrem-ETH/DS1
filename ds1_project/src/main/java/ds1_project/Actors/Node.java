@@ -104,22 +104,7 @@ public abstract class Node extends AbstractActor {
 		delay(d);
 	}
 
-	// a multicast implementation that crashes after sending the update to the
-	// cohorts
-	/*
-	 * void multicastAndCrash(Serializable m, int recoverIn) { for (ActorRef p:
-	 * participants) { p.tell(m, getSelf()); crash(recoverIn); return; } }
-	 */
 
-	// Function to emulate a crash and a recovery in a given time
-
-	/*
-	 * void crash( int recoverIn) { getContext().become(crashed());
-	 * print(" Crash!!"); // setting a timer to "recover"
-	 * getContext().system().scheduler().scheduleOnce( Duration.create(recoverIn,
-	 * TimeUnit.MILLISECONDS), getSelf(), new Recovery(), // message sent to myself
-	 * getContext().system().dispatcher(), getSelf() ); }
-	 */
 
 	// schedule a Timeout message in specified time
 	void setTimeout(int time, toMessages toMess) {
