@@ -1,9 +1,9 @@
 package ds1_project.Actors;
 
 import ds1_project.Key;
-import ds1_project.TwoPhaseBroadcast.*;
 import ds1_project.Requests.*;
 import ds1_project.Actors.*;
+import ds1_project.TwoPhaseBroadcast.*;
 import akka.actor.ActorRef;
 import akka.actor.AbstractActor;
 import akka.actor.ActorSystem;
@@ -32,15 +32,17 @@ public class Coordinator extends Node {
 	// here all the nodes that sent YES are collected
 	private final HashMap<Key, HashSet<ActorRef>> majorityVoters = new HashMap<Key, HashSet<ActorRef>>();
 	public static final int QUORUM_SIZE = ds1_project.TwoPhaseBroadcast.QUORUM_SIZE;
-	private LinkedHashMap<Key, Integer> waitingList = new LinkedHashMap<Key, Integer>();
+	private List<ArrayList<Update>> waitingList = new ArrayList<ArrayList<Update>>();
 	private int epochs = 0;
 	private int sequenceNum = 0;
-	private int value;
 	boolean quorum = false;
+	private boolean newUpdate = false;
 
 	// Do we have majority nodes to ensure the update?
 	boolean Quorum(Key key) { // returns true if all voted YES
 		if (majorityVoters.containsKey(key)) {
+			waitingList.get(key.getE()).get(key.getS()).setValidity(true);
+			newUpdate = true ;
 			return majorityVoters.get(key).size() >= QUORUM_SIZE;
 		} else {
 			return false;
@@ -51,6 +53,8 @@ public class Coordinator extends Node {
 		super(-1); // the coordinator has the id -1
 		sequenceNum = 0;
 		super.setCoordinator(true);
+		waitingList.add(new ArrayList<Update>());
+
 	}
 
 	static public Props props() {
@@ -60,8 +64,7 @@ public class Coordinator extends Node {
 	@Override
 	public Receive createReceive() {
 		return receiveBuilder().match(StartMessage.class, this::onStartMessage)
-				.match(UpdateRequest.class, this::onUpdateRequest)
-				.match(ReadRequest.class, this::OnReadRequest)
+				.match(UpdateRequest.class, this::onUpdateRequest).match(ReadRequest.class, this::OnReadRequest)
 				.match(Acknowledgement.class, this::onReceivingAck)
 				// .match(Timeout.class, this::onTimeout)
 				.build();
@@ -74,6 +77,7 @@ public class Coordinator extends Node {
 	public int getEpoch() {
 		return this.epochs;
 	}
+
 	public void increaseSequenceNum() {
 		this.sequenceNum = this.sequenceNum + 1;
 	}
@@ -86,7 +90,7 @@ public class Coordinator extends Node {
 		setGroup(msg);
 		;
 	}
-	
+
 	public void crash() {
 		getContext().become(crashed());
 		print(" Crash!!");
@@ -94,25 +98,19 @@ public class Coordinator extends Node {
 
 	public void onUpdateRequest(final UpdateRequest msg) {
 		delay();
-		int currentSeqNum = this.sequenceNum;
-		for (Key lastkey : waitingList.keySet()) {
-			if (lastkey.getE() == this.epochs && lastkey.getS() > currentSeqNum) {
-				currentSeqNum = lastkey.getS();
-			}
-		}
-		
-		print("Broadcasting update with sequence number = " +  (currentSeqNum+1) + ":"+ msg.getValue());
-		Update update = new Update(this.epochs, currentSeqNum +1, msg.getValue()); // get max of queue +1 instead
-																				// sequencenum +1
+		int currentSeqNum = waitingList.get(epochs).size() ;
+		print("Broadcasting update with sequence number = " + (currentSeqNum) + ":" + msg.getValue());
+		Update update = new Update(this.epochs, currentSeqNum, msg.getValue()); // get max of queue +1 instead
+																					// sequencenum +1
 		multicast(update);
-		waitingList.put(new Key(this.epochs, update.getSequenceNum()), update.getValue());
-		
+		waitingList.get(epochs).add(update);
+
 	}
 
-
 	public void onReceivingAck(Acknowledgement msg) {
-		delay();
+		// delay();
 		Acknowledge ack = (msg).ack;
+		//print("Received ACK from "+sender()+" with seqnum "+msg.getRequest_seqnum()) ;
 		Key key = new Key(msg.getRequest_epoch(), msg.getRequest_seqnum());
 		HashSet<ActorRef> voters = new HashSet<>();
 		boolean flag = false;
@@ -131,31 +129,38 @@ public class Coordinator extends Node {
 				majorityVoters.put(key, voters);
 			}
 
-			
+			print("Received ACKs :" + majorityVoters.get(key).size());
+			// crash();
+		}
 
-				print("Received ACKs :" + majorityVoters.get(key).size());
-				//crash();
-			}
-	
+		Quorum(key);
 
-		if (Quorum(key) && msg.getRequest_seqnum() > this.sequenceNum ) {
-
-			print("Majority of ACK - Sending WriteOK messages for s=" + msg.getRequest_seqnum());
-			multicast(new WriteOk(true, msg.getRequest_epoch(), msg.getRequest_seqnum()));
-
-			for (Map.Entry<Key, Integer> entry : waitingList.entrySet()) {
-				if (entry.getKey().equals(key)) {
-					this.setValue(entry.getValue());
-					print("Updated value :" + this.getValue());
-					key = entry.getKey();
-					sequenceNum = msg.getRequest_seqnum();
+		if (newUpdate) {
+			Update toImplement = new Update(0, 0, 0);
+			int i = waitingList.get(epochs).size()-1;
+			boolean found = false;
+			while (i >= 0 && !found) {
+				if (waitingList.get(epochs).get(i).isValidated() && i>sequenceNum ) {
+					found = true;
+					toImplement = waitingList.get(epochs).get(i);
 				}
+				i-- ;
 			}
-			waitingList.remove(key);
-			print("Update removed from queue");
+			if (found) {
+				print("Majority of ACK - Sending WriteOK messages for s=" + toImplement.getSequenceNum());
+				multicast(new WriteOk(true, toImplement.getEpochs(), toImplement.getSequenceNum()));
+				sequenceNum = toImplement.getSequenceNum() ;
+				/*
+				 * for (Map.Entry<Key, Integer> entry : waitingList.entrySet()) { if
+				 * (entry.getKey().equals(key)) { this.setValue(entry.getValue());
+				 * print("Updated value :" + this.getValue()); key = entry.getKey(); sequenceNum
+				 * = msg.getRequest_seqnum(); } }
+				 */
+				this.setValue(toImplement.getValue());
+				print("Updated value :" + this.getValue());
+				newUpdate = false ;
+			}
 		}
 	}
-
-	
 
 }

@@ -11,15 +11,14 @@ public class Update implements Serializable {
 	private final int epochs;
 	private final int sequencenum;
 	private final int value;
-	private final int[] keepSequence;
+	private boolean isValidated ;
 
 	public Update(final int epochs, final int sequencenum, final int value) {
 		super();
 		this.epochs = epochs;
 		this.sequencenum = sequencenum;
 		this.value = value;
-		final int[] keepSequence = { this.epochs, this.sequencenum };
-		this.keepSequence = keepSequence;
+		this.isValidated = false ;
 	}
 
 	public int getEpochs() {
@@ -34,8 +33,12 @@ public class Update implements Serializable {
 		return this.value;
 	}
 
-	public int[] getKeepSequence() {
-		return this.keepSequence;
+	public void setValidity(boolean valid){
+		this.isValidated = valid ;
+	}
+
+	public boolean isValidated() {
+		return isValidated;
 	}
 
 }
