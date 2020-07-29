@@ -39,8 +39,11 @@ public class Participant extends Node {
 	@Override
 	public Receive createReceive() {
 		return receiveBuilder().match(StartMessage.class, this::onStartMessage).match(WriteOk.class, this::onWriteOK)
-				.match(Update.class, this::onUpdate).match(UpdateRequest.class, this::onUpdateRequest)
-				.match(ReadRequest.class, this::OnReadRequest).match(Timeout.class, this::onTimeout)
+				.match(Update.class, this::onUpdate)
+				.match(UpdateRequest.class, this::onUpdateRequest)
+				.match(ReadRequest.class, this::OnReadRequest)
+				.match(Timeout.class, this::onTimeout)
+				.match(CrashedNodeWarning.class, this::OnCrashedNodeWarning)
 				// .match(Recovery.class, this::onRecovery)
 				.build();
 	}
@@ -114,7 +117,7 @@ public class Participant extends Node {
 
 		if (msg.toMess == toMessages.UPDATE) {
 			print(" update Timeout:" + "Coordinator Crash");
-
+			multicast(new CrashedNodeWarning(0));
 			// send election message
 			print(" Send election message");
 

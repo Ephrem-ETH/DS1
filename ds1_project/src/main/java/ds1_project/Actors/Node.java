@@ -22,13 +22,15 @@ import java.util.LinkedHashMap;
 
 public abstract class Node extends AbstractActor {
 	protected int id; // node ID
-	protected List<ActorRef> participants; // list of participant nodes
+	//protected List<ActorRef> participants; // list of participant nodes
+	protected HashMap<Integer,ActorRef> network = new HashMap<Integer,ActorRef>() ;
 	// protected Decision decision = null; // decision taken by this node
 	protected boolean isUpdated = false;
 	private boolean isCoordinator = false;
 	private int value;
 	private ActorRef sender;
 	protected Cancellable currentTimeout;
+	private List<Integer> crashedNodes ;
 	
 
 	public enum toMessages {
@@ -38,6 +40,7 @@ public abstract class Node extends AbstractActor {
 	public Node(final int id) {
 		super();
 		this.id = id;
+		crashedNodes = new ArrayList<Integer>() ;
 	}
 
 	// Getters and Setters
@@ -74,20 +77,18 @@ public abstract class Node extends AbstractActor {
 	}
 
 	public void setGroup(final StartMessage sm) {
-		participants = new ArrayList<>();
-		for (final ActorRef b : sm.group) {
+		for (final Map.Entry<Integer,ActorRef> b : sm.group.entrySet()) {
 			if (!b.equals(getSelf())) {
-
 				// copying all participant refs except for self
-				this.participants.add(b);
+				this.network.put(b.getKey(), b.getValue());
 			}
 		}
 		print("starting with " + sm.group.size() + " peer(s)");
 	}
 
 	public void multicast(final Serializable m) {
-		for (final ActorRef p : participants) {
-			p.tell(m, getSelf());
+		for (final Map.Entry<Integer,ActorRef> p : network.entrySet()) {
+			p.getValue().tell(m, getSelf());
 		}
 	}
 
@@ -104,6 +105,11 @@ public abstract class Node extends AbstractActor {
 		delay(d);
 	}
 
+	void OnCrashedNodeWarning(CrashedNodeWarning msg){
+		if (!this.crashedNodes.contains(msg.getNode())){
+			crashedNodes.add(msg.getNode()) ;
+		}
+	}
 
 
 	// schedule a Timeout message in specified time

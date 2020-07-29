@@ -15,6 +15,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.Set;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.ArrayList;
 import java.lang.Thread;
 import java.util.Collections;
@@ -39,10 +40,11 @@ public class TwoPhaseBroadcast {
 
 	// Start message that sends the list of participants to everyone
 	public static class StartMessage implements Serializable {
-		public final List<ActorRef> group;
 
-		public StartMessage(final List<ActorRef> group) {
-			this.group = Collections.unmodifiableList(new ArrayList<>(group));
+		public final Map<Integer,ActorRef> group ;
+
+		public StartMessage(final HashMap<Integer,ActorRef> group) {
+			this.group = Collections.unmodifiableMap(new HashMap<Integer,ActorRef>(group));
 		}
 	}
 
@@ -86,17 +88,17 @@ public class TwoPhaseBroadcast {
 		System.out.println("Added external client");
 
 		// Create participants
-		final List<ActorRef> group = new ArrayList<>();
-		for (int i = 0; i < N_PARTICIPANTS; i++) {
-			group.add(system.actorOf(Participant.props(i, coordinator), "participant" + i));
+		final HashMap<Integer,ActorRef> group = new HashMap<>();
+		for (int i = 1; i <= N_PARTICIPANTS; i++) {
+			group.put(i,system.actorOf(Participant.props(i, coordinator), "participant" + i));
 			System.out.println("Added node " + i + " to the group");
 		}
 		System.out.println(group);
 		// Send start messages to the participants to inform them of the group
 		final StartMessage start = new StartMessage(group);
-		for (final ActorRef peer : group) {
+		for (final Map.Entry<Integer,ActorRef> peer : group.entrySet()) {
 			System.out.println("Sending start message");
-			peer.tell(start, null);
+			peer.getValue().tell(start, null);
 		}
 
 		// Send the start messages to the coordinator
@@ -132,11 +134,11 @@ public class TwoPhaseBroadcast {
 		} catch (final IOException ignored) {
 		}
 		coordinator.tell(new ReadRequest(), client);
-		group.get(0).tell(new ReadRequest(), client);
 		group.get(1).tell(new ReadRequest(), client);
 		group.get(2).tell(new ReadRequest(), client);
 		group.get(3).tell(new ReadRequest(), client);
 		group.get(4).tell(new ReadRequest(), client);
+		group.get(5).tell(new ReadRequest(), client);
 
 
 		try {

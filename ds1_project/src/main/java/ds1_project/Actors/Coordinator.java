@@ -50,7 +50,7 @@ public class Coordinator extends Node {
 	}
 
 	public Coordinator() {
-		super(-1); // the coordinator has the id -1
+		super(0); // the coordinator has the id 0
 		sequenceNum = 0;
 		super.setCoordinator(true);
 		waitingList.add(new ArrayList<Update>());
@@ -130,7 +130,6 @@ public class Coordinator extends Node {
 			}
 
 			print("Received ACKs :" + majorityVoters.get(key).size());
-			// crash();
 		}
 
 		Quorum(key);
