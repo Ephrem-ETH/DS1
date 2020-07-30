@@ -19,33 +19,35 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 
 /*-- Common functionality for both Coordinator and Participants ------------*/
 
 public abstract class Node extends AbstractActor {
 	protected int id; // node ID
-	// protected List<ActorRef> participants; // list of participant nodes
+
+	// List of nodes with ID as key
 	protected HashMap<Integer, ActorRef> network = new HashMap<Integer, ActorRef>();
-	// protected Decision decision = null; // decision taken by this node
-	protected boolean isUpdated = false;
+
+	// List of updates
+	protected List<ArrayList<Update>> waitingList = new ArrayList<ArrayList<Update>>();
+
+	
 	private boolean isCoordinator = false;
 	private int value;
 	private ActorRef sender;
 	protected Cancellable currentTimeout;
-	private List<Integer> crashedNodes;
-	private int epochs = 0;
-	private int sequenceNum = 0;
-	protected ActorRef coordinator;
+	protected List<Integer> crashedNodes;
+	
 
 	public enum toMessages {
-		UPDATE, WRITEOK, HEARTBEAT
+		UPDATE, WRITEOK, HEARTBEAT, ACK
 	};
 
 	public Node(final int id) {
 		super();
 		this.id = id;
 		crashedNodes = new ArrayList<Integer>();
+		waitingList.add(new ArrayList<Update>());
 	}
 
 	// Getters and Setters
@@ -62,11 +64,7 @@ public abstract class Node extends AbstractActor {
 	}
 
 	public void setCoordinator(boolean bool) {
-		if (bool) {
-			this.isCoordinator = true;
-		} else {
-			this.isCoordinator = false;
-		}
+		this.isCoordinator = bool ;
 	}
 
 	public boolean isCoordinator() {
@@ -110,57 +108,6 @@ public abstract class Node extends AbstractActor {
 		delay(d);
 	}
 
-	void OnCrashedNodeWarning(CrashedNodeWarning msg) {
-		if (!this.crashedNodes.contains(msg.getNode())) {
-			crashedNodes.add(msg.getNode());
-		}
-	}
-
-	public void startElection() {
-		String electionID = "" + epochs + id;
-		ElectionMessage msg = new ElectionMessage(Integer.parseInt(electionID));
-		int destinationID = this.id + 1;
-		if (this.id == TwoPhaseBroadcast.N_PARTICIPANTS){
-			destinationID = 0 ;
-		}
-		while (crashedNodes.contains(destinationID)) {
-			destinationID++;
-		}
-		msg.addCandidate(this.id, this.sequenceNum); // last implemented update -> maybe go for most recent update in
-														// waiting list
-		network.get(destinationID).tell(msg, self());
-	}
-
-	public void onElectionMessage(ElectionMessage msg) {
-		if (msg.getCandidatesID().contains(this.id)) {
-			int iMax = msg.getLastUpdates().indexOf(Collections.max(msg.getLastUpdates()));
-			if (iMax == this.id) {
-				this.isCoordinator = true;
-			} else {
-				this.coordinator = network.get(iMax);
-			}
-			if (this.id <= TwoPhaseBroadcast.N_PARTICIPANTS) {
-				int destinationID = this.id + 1;
-				while (crashedNodes.contains(destinationID)) {
-					destinationID++;
-				}
-				network.get(destinationID).tell(msg, self());
-			}
-		} else {
-			msg.addCandidate(this.id, this.sequenceNum);
-			int destinationID = this.id + 1;
-			if (this.id == TwoPhaseBroadcast.N_PARTICIPANTS){
-				destinationID = 0 ;
-			}
-			while (crashedNodes.contains(destinationID)) {
-				destinationID++;
-			}
-			msg.addCandidate(this.id, this.sequenceNum); // last implemented update -> maybe go for most recent update in
-															// waiting list
-			network.get(destinationID).tell(msg, self());
-		}
-	}
-
 	// schedule a Timeout message in specified time
 	void setTimeout(int time, toMessages toMess) {
 		this.currentTimeout = getContext().system().scheduler().scheduleOnce(
@@ -187,8 +134,5 @@ public abstract class Node extends AbstractActor {
 				}).build();
 	}
 
-	public void OnReadRequest(final ReadRequest msg) {
-		getSender().tell(new ReadResponse(value), self());
-	}
 
 }

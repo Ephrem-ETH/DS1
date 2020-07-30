@@ -21,11 +21,11 @@ public class Update implements Serializable {
 		this.isValidated = false ;
 	}
 
-	public int getEpochs() {
+	public int getEpoch() {
 		return this.epochs;
 	}
 
-	public int getSequenceNum() {
+	public int getSequenceNumber() {
 		return this.sequencenum;
 	}
 

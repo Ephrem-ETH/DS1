@@ -3,11 +3,7 @@ package ds1_project;
 import ds1_project.Requests.*;
 import ds1_project.Actors.*;
 import akka.actor.ActorRef;
-import akka.actor.AbstractActor;
 import akka.actor.ActorSystem;
-import akka.actor.Props;
-import scala.None;
-import scala.concurrent.duration.Duration;
 
 import java.io.Serializable;
 import java.util.concurrent.TimeUnit;
@@ -80,7 +76,7 @@ public class TwoPhaseBroadcast {
 		final ActorSystem system = ActorSystem.create("helloakka");
 
 		// Create the coordinator
-		final ActorRef coordinator = system.actorOf(Coordinator.props(), "coordinator");
+		final ActorRef coordinator = system.actorOf(Participant.props(), "coordinator");
 		System.out.println("Added cordinator node");
 
 		// Create external client
