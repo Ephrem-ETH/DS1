@@ -34,8 +34,8 @@ public abstract class Node extends AbstractActor {
 	private ActorRef sender;
 	protected Cancellable currentTimeout;
 	private List<Integer> crashedNodes;
-	private int epochs = 0;
-	private int sequenceNum = 0;
+	protected int epochs = 0;
+	protected int sequenceNum = 0;
 	protected ActorRef coordinator;
 
 	public enum toMessages {
