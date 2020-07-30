@@ -31,4 +31,12 @@ public class ElectionMessage implements Serializable {
         return this.electionID ;
     }
 
+    public List<Integer> getCandidatesID() {
+        return candidatesID;
+    }
+
+    public List<Integer> getLastUpdates() {
+        return lastUpdates;
+    }
+
 }

@@ -17,7 +17,6 @@ import akka.actor.Props;
 import ds1_project.Responses.*;
 
 public class Participant extends Node {
-	private ActorRef coordinator;
 	// private HashMap<Key, Integer> waitingList = new HashMap<Key, Integer>();
 	// forwarding to coordinator
 	final static int WRITEOK_TIMEOUT = 3000;
@@ -44,6 +43,7 @@ public class Participant extends Node {
 				.match(ReadRequest.class, this::OnReadRequest)
 				.match(Timeout.class, this::onTimeout)
 				.match(CrashedNodeWarning.class, this::OnCrashedNodeWarning)
+				.match(ElectionMessage.class, this::onElectionMessage)
 				// .match(Recovery.class, this::onRecovery)
 				.build();
 	}
@@ -108,7 +108,7 @@ public class Participant extends Node {
 		waitingList.get(msg.getEpochs()).add(msg) ;
 		print("queued value" + waitingList.get(msg.getEpochs()).get(msg.getSequenceNum()).getValue() + "at sequence number "+msg.getSequenceNum());
 		Acknowledgement acknowledgement = new Acknowledgement(Acknowledge.ACK, msg.getEpochs(), msg.getSequenceNum());
-		coordinator.tell(acknowledgement, getSelf());
+		this.coordinator.tell(acknowledgement, getSelf());
 		this.print("ACK sent for ("+msg.getEpochs()+", "+msg.getSequenceNum()+", "+msg.getValue()+")");
 		// setTimeout(WRITEOK_TIMEOUT, toMessages.WRITEOK);
 	}
@@ -118,8 +118,9 @@ public class Participant extends Node {
 		if (msg.toMess == toMessages.UPDATE) {
 			print(" update Timeout:" + "Coordinator Crash");
 			multicast(new CrashedNodeWarning(0));
-			// send election message
+			
 			print(" Send election message");
+			startElection();
 
 		}
 
@@ -127,8 +128,7 @@ public class Participant extends Node {
 
 			print("WriteOk Timeout:" + "Coordinator Crash");
 			print(" Send election message");
-
-			// send election message
+			startElection();
 
 		}
 

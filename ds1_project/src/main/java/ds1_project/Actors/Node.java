@@ -8,6 +8,7 @@ import ds1_project.TwoPhaseBroadcast.*;
 import scala.concurrent.duration.Duration;
 import ds1_project.Responses.*;
 import ds1_project.Key;
+import ds1_project.TwoPhaseBroadcast;
 import ds1_project.Requests.*;
 import java.io.Serializable;
 import java.util.List;
@@ -15,6 +16,8 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 
@@ -22,16 +25,18 @@ import java.util.LinkedHashMap;
 
 public abstract class Node extends AbstractActor {
 	protected int id; // node ID
-	//protected List<ActorRef> participants; // list of participant nodes
-	protected HashMap<Integer,ActorRef> network = new HashMap<Integer,ActorRef>() ;
+	// protected List<ActorRef> participants; // list of participant nodes
+	protected HashMap<Integer, ActorRef> network = new HashMap<Integer, ActorRef>();
 	// protected Decision decision = null; // decision taken by this node
 	protected boolean isUpdated = false;
 	private boolean isCoordinator = false;
 	private int value;
 	private ActorRef sender;
 	protected Cancellable currentTimeout;
-	private List<Integer> crashedNodes ;
-	
+	private List<Integer> crashedNodes;
+	private int epochs = 0;
+	private int sequenceNum = 0;
+	protected ActorRef coordinator;
 
 	public enum toMessages {
 		UPDATE, WRITEOK, HEARTBEAT
@@ -40,7 +45,7 @@ public abstract class Node extends AbstractActor {
 	public Node(final int id) {
 		super();
 		this.id = id;
-		crashedNodes = new ArrayList<Integer>() ;
+		crashedNodes = new ArrayList<Integer>();
 	}
 
 	// Getters and Setters
@@ -77,7 +82,7 @@ public abstract class Node extends AbstractActor {
 	}
 
 	public void setGroup(final StartMessage sm) {
-		for (final Map.Entry<Integer,ActorRef> b : sm.group.entrySet()) {
+		for (final Map.Entry<Integer, ActorRef> b : sm.group.entrySet()) {
 			if (!b.equals(getSelf())) {
 				// copying all participant refs except for self
 				this.network.put(b.getKey(), b.getValue());
@@ -87,7 +92,7 @@ public abstract class Node extends AbstractActor {
 	}
 
 	public void multicast(final Serializable m) {
-		for (final Map.Entry<Integer,ActorRef> p : network.entrySet()) {
+		for (final Map.Entry<Integer, ActorRef> p : network.entrySet()) {
 			p.getValue().tell(m, getSelf());
 		}
 	}
@@ -105,12 +110,56 @@ public abstract class Node extends AbstractActor {
 		delay(d);
 	}
 
-	void OnCrashedNodeWarning(CrashedNodeWarning msg){
-		if (!this.crashedNodes.contains(msg.getNode())){
-			crashedNodes.add(msg.getNode()) ;
+	void OnCrashedNodeWarning(CrashedNodeWarning msg) {
+		if (!this.crashedNodes.contains(msg.getNode())) {
+			crashedNodes.add(msg.getNode());
 		}
 	}
 
+	public void startElection() {
+		String electionID = "" + epochs + id;
+		ElectionMessage msg = new ElectionMessage(Integer.parseInt(electionID));
+		int destinationID = this.id + 1;
+		if (this.id == TwoPhaseBroadcast.N_PARTICIPANTS){
+			destinationID = 0 ;
+		}
+		while (crashedNodes.contains(destinationID)) {
+			destinationID++;
+		}
+		msg.addCandidate(this.id, this.sequenceNum); // last implemented update -> maybe go for most recent update in
+														// waiting list
+		network.get(destinationID).tell(msg, self());
+	}
+
+	public void onElectionMessage(ElectionMessage msg) {
+		if (msg.getCandidatesID().contains(this.id)) {
+			int iMax = msg.getLastUpdates().indexOf(Collections.max(msg.getLastUpdates()));
+			if (iMax == this.id) {
+				this.isCoordinator = true;
+			} else {
+				this.coordinator = network.get(iMax);
+			}
+			if (this.id <= TwoPhaseBroadcast.N_PARTICIPANTS) {
+				int destinationID = this.id + 1;
+				while (crashedNodes.contains(destinationID)) {
+					destinationID++;
+				}
+				network.get(destinationID).tell(msg, self());
+			}
+		} else {
+			msg.addCandidate(this.id, this.sequenceNum);
+			int destinationID = this.id + 1;
+			if (this.id == TwoPhaseBroadcast.N_PARTICIPANTS){
+				destinationID = 0 ;
+			}
+			while (crashedNodes.contains(destinationID)) {
+				destinationID++;
+			}
+			msg.addCandidate(this.id, this.sequenceNum); // last implemented update -> maybe go for most recent update in
+															// waiting list
+			network.get(destinationID).tell(msg, self());
+		}
+	}
 
 	// schedule a Timeout message in specified time
 	void setTimeout(int time, toMessages toMess) {

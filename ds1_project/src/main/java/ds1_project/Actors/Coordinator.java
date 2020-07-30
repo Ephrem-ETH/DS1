@@ -33,8 +33,7 @@ public class Coordinator extends Node {
 	private final HashMap<Key, HashSet<ActorRef>> majorityVoters = new HashMap<Key, HashSet<ActorRef>>();
 	public static final int QUORUM_SIZE = ds1_project.TwoPhaseBroadcast.QUORUM_SIZE;
 	private List<ArrayList<Update>> waitingList = new ArrayList<ArrayList<Update>>();
-	private int epochs = 0;
-	private int sequenceNum = 0;
+
 	boolean quorum = false;
 	private boolean newUpdate = false;
 
