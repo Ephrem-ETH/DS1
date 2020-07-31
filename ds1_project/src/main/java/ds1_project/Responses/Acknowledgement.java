@@ -3,7 +3,6 @@ package ds1_project.Responses;
 import java.io.Serializable;
 
 import ds1_project.TwoPhaseBroadcast.Acknowledge;
-import scala.annotation.meta.getter;
 
 //participants send acknowledgement when the coordinator sends update request 
 public class Acknowledgement implements Serializable {

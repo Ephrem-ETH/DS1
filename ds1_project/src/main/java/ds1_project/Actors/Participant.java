@@ -3,16 +3,15 @@ package ds1_project.Actors;
 import ds1_project.Key;
 import ds1_project.TwoPhaseBroadcast;
 import ds1_project.TwoPhaseBroadcast.*;
+import scala.unchecked;
 import ds1_project.Requests.*;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 
-import akka.actor.Actor;
 import akka.actor.ActorRef;
 import akka.actor.Props;
 import ds1_project.Responses.*;
@@ -36,6 +35,7 @@ public class Participant extends Node {
 
 	// Flags
 	boolean quorum = false;
+	private boolean isElecting = false;
 	private boolean newUpdate = false;
 
 	// Standard participant constructor
@@ -73,6 +73,7 @@ public class Participant extends Node {
 	public void epochInit() {
 		sequenceNumber = 0;
 		this.epoch = this.epoch + 1;
+		waitingList.add(new ArrayList<Update>());
 	}
 
 	public void setCoordinator(ActorRef coord) {
@@ -97,6 +98,7 @@ public class Participant extends Node {
 	public void onUpdateRequest(final UpdateRequest msg) {
 		delay();
 		if (isCoordinator()) {
+			print("Update received") ;
 			int currentSeqNum = waitingList.get(epoch).size();
 			print("Broadcasting update with sequence number = " + (currentSeqNum) + ":" + msg.getValue());
 			Update update = new Update(this.epoch, currentSeqNum, msg.getValue());
@@ -109,23 +111,35 @@ public class Participant extends Node {
 	}
 
 	public void onElectionMessage(ElectionMessage msg) {
+		print("ElectionStep");
 		if (msg.getCandidatesID().contains(this.id)) {
-			int iMax = msg.getLastUpdates().indexOf(Collections.max(msg.getLastUpdates()));
-			if (iMax == this.id) {
-				this.setCoordinator(true);
-			} else {
-				this.coordinator = network.get(iMax);
+			int iMax = 0 ;
+			for (int i = 0 ; i<msg.getCandidatesID().size() ; i++){
+				if (msg.getLastUpdates().get(i)>msg.getLastUpdates().get(iMax)){
+					iMax = i ;
+				} else if (msg.getLastUpdates().get(i) == msg.getLastUpdates().get(iMax) && msg.getCandidatesID().get(iMax)>msg.getCandidatesID().get(i)){
+					iMax = i ;
+				}
 			}
-			if (this.id <= TwoPhaseBroadcast.N_PARTICIPANTS) {
+			if (msg.getCandidatesID().get(iMax)== this.id) { //Node won the election
+				this.setCoordinator(true);
+				print("I won the election");
+			} else { // Node lost
+				print("I lost : "+msg.getCandidatesID().get(iMax)+" won") ;
+			}
+			if (this.id < TwoPhaseBroadcast.N_PARTICIPANTS) { //Forwarding the election message
 				int destinationID = this.id + 1;
 				while (crashedNodes.contains(destinationID)) {
 					destinationID++;
 				}
 				network.get(destinationID).tell(msg, self());
 			}
+			this.coordinator = network.get(msg.getCandidatesID().get(iMax));
 			epochInit();
+			print("Election complete");
+			isElecting = false ;
 		} else {
-			msg.addCandidate(this.id, this.sequenceNumber);
+			// msg.addCandidate(this.id, this.sequenceNumber);
 			int destinationID = this.id + 1;
 			if (this.id == TwoPhaseBroadcast.N_PARTICIPANTS) {
 				destinationID = 0;
@@ -142,6 +156,7 @@ public class Participant extends Node {
 
 	void OnCrashedNodeWarning(CrashedNodeWarning msg) {
 		if (!this.crashedNodes.contains(msg.getNode())) {
+			print("Adding node " + msg.getNode() + " to crashed list");
 			crashedNodes.add(msg.getNode());
 		}
 	}
@@ -160,6 +175,7 @@ public class Participant extends Node {
 		if (msg.toMess == toMessages.WRITEOK) {
 
 			print("WriteOk Timeout:" + "Coordinator Crash");
+			multicast(new CrashedNodeWarning(0));
 			print(" Send election message");
 			startElection();
 
@@ -170,7 +186,7 @@ public class Participant extends Node {
 	// Coordinator methods
 
 	public void onReceivingAck(Acknowledgement msg) {
-		// delay();
+		delay();
 		Acknowledge ack = (msg).ack;
 		// print("Received ACK from "+sender()+" with seqnum "+msg.getRequest_seqnum())
 		// ;
@@ -209,6 +225,7 @@ public class Participant extends Node {
 				i--;
 			}
 			if (found) {
+				this.crash();
 				print("Majority of ACK - Sending WriteOK messages for s=" + toImplement.getSequenceNumber());
 				multicast(new WriteOk(true, toImplement.getEpoch(), toImplement.getSequenceNumber()));
 				sequenceNumber = toImplement.getSequenceNumber();
@@ -223,9 +240,9 @@ public class Participant extends Node {
 
 	public void onWriteOK(final WriteOk msg) {
 		delay();
-		if (this.currentTimeout != null) {
-			this.currentTimeout.cancel();
-		}
+		/*
+		 * if (this.currentTimeout != null) { this.currentTimeout.cancel(); }
+		 */
 		print("Received WriteOk for e=" + msg.getRequest_epoch() + " and s=" + msg.getRequest_seqnum());
 		if (msg.getRequest_seqnum() > sequenceNumber) {
 			this.setValue(waitingList.get(msg.getRequest_epoch()).get(msg.getRequest_seqnum()).getValue());
@@ -237,9 +254,9 @@ public class Participant extends Node {
 
 	public void onUpdate(Update msg) { // Update propagates from coordinator
 		delay();
-		if (this.currentTimeout != null) {
-			this.currentTimeout.cancel();
-		}
+		/*
+		 * if (this.currentTimeout != null) { this.currentTimeout.cancel(); }
+		 */
 
 		waitingList.get(msg.getEpoch()).add(msg);
 		print("queued value" + waitingList.get(msg.getEpoch()).get(msg.getSequenceNumber()).getValue()
@@ -248,9 +265,8 @@ public class Participant extends Node {
 		this.coordinator.tell(acknowledgement, getSelf());
 		this.print("ACK sent for (" + msg.getEpoch() + ", " + msg.getSequenceNumber() + ", " + msg.getValue() + ")");
 		setTimeout(WRITEOK_TIMEOUT, toMessages.WRITEOK);
+		System.out.println("");
 	}
-
-	
 
 	@Override
 	public Receive createReceive() {
@@ -258,8 +274,8 @@ public class Participant extends Node {
 				.match(Update.class, this::onUpdate).match(UpdateRequest.class, this::onUpdateRequest)
 				.match(ReadRequest.class, this::OnReadRequest).match(Timeout.class, this::onTimeout)
 				.match(CrashedNodeWarning.class, this::OnCrashedNodeWarning)
-				.match(ElectionMessage.class, this::onElectionMessage).match(UpdateRequest.class, this::onUpdateRequest)
-				.match(ReadRequest.class, this::OnReadRequest).match(Acknowledgement.class, this::onReceivingAck)
+				.match(ElectionMessage.class, this::onElectionMessage)
+				.match(Acknowledgement.class, this::onReceivingAck)
 				// .match(Recovery.class, this::onRecovery)
 				.build();
 	}
@@ -276,29 +292,36 @@ public class Participant extends Node {
 	}
 
 	public void startElection() {
-		String electionID = "" + epoch + id;
-		ElectionMessage msg = new ElectionMessage(Integer.parseInt(electionID));
-		int destinationID = this.id + 1;
-		if (this.id == TwoPhaseBroadcast.N_PARTICIPANTS) {
-			destinationID = 0;
+		if (!isElecting) {
+			isElecting = true ;
+			print("Starting election process");
+			String electionID = "" + epoch + id;
+			ElectionMessage msg = new ElectionMessage((electionID));
+			int destinationID = this.id + 1;
+			
+			while (crashedNodes.contains(destinationID)) {
+				destinationID++;
+			}
+			msg.addCandidate(this.id, this.sequenceNumber); // last implemented update -> maybe go for most recent
+															// update in
+															// waiting list
+			ActorRef temp = network.get(destinationID) ;
+			if (this.id != TwoPhaseBroadcast.N_PARTICIPANTS) {
+				network.get(destinationID).tell(msg, self()); //to fix
+			}
 		}
-		while (crashedNodes.contains(destinationID)) {
-			destinationID++;
-		}
-		msg.addCandidate(this.id, this.sequenceNumber); // last implemented update -> maybe go for most recent update in
-														// waiting list
-		network.get(destinationID).tell(msg, self());
 	}
 
 	public void crash() {
 		getContext().become(crashed());
+		this.isCrashed = true;
 		print(" Crash!!");
 	}
 
-	public void coordinatorEpochLaunch (){
+	public void coordinatorEpochLaunch() {
 		this.setCoordinator(true);
 		epochInit();
-		//Enforce last known update
+		// Enforce last known update
 	}
 
 }

@@ -6,14 +6,7 @@ import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
 
 import java.io.Serializable;
-import java.util.concurrent.TimeUnit;
-
-import java.util.Set;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
-import java.util.ArrayList;
-import java.lang.Thread;
 import java.util.Collections;
 import java.util.HashMap;
 import java.io.IOException;
@@ -37,7 +30,11 @@ public class TwoPhaseBroadcast {
 	// Start message that sends the list of participants to everyone
 	public static class StartMessage implements Serializable {
 
-		public final Map<Integer,ActorRef> group ;
+		/**
+		 *
+		 */
+		private static final long serialVersionUID = 1L;
+		public final Map<Integer, ActorRef> group;
 
 		public StartMessage(final HashMap<Integer,ActorRef> group) {
 			this.group = Collections.unmodifiableMap(new HashMap<Integer,ActorRef>(group));
@@ -136,6 +133,20 @@ public class TwoPhaseBroadcast {
 		group.get(4).tell(new ReadRequest(), client);
 		group.get(5).tell(new ReadRequest(), client);
 
+		System.out.println("New update");
+		group.get(2).tell(new UpdateRequest(66), client);
+
+		try {
+			System.out.println(">>> Press ENTER to continue <<<");
+			System.in.read();
+		} catch (final IOException ignored) {
+		}
+		coordinator.tell(new ReadRequest(), client);
+		group.get(1).tell(new ReadRequest(), client);
+		group.get(2).tell(new ReadRequest(), client);
+		group.get(3).tell(new ReadRequest(), client);
+		group.get(4).tell(new ReadRequest(), client);
+		group.get(5).tell(new ReadRequest(), client);
 
 		try {
 			System.out.println(">>> Press ENTER to exit <<<");

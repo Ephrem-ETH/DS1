@@ -2,22 +2,16 @@ package ds1_project.Actors;
 
 import akka.actor.ActorRef;
 import akka.actor.Cancellable;
-import akka.actor.AbstractActor.Receive;
 import akka.actor.AbstractActor;
 import ds1_project.TwoPhaseBroadcast.*;
 import scala.concurrent.duration.Duration;
 import ds1_project.Responses.*;
-import ds1_project.Key;
-import ds1_project.TwoPhaseBroadcast;
-import ds1_project.Requests.*;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 
 /*-- Common functionality for both Coordinator and Participants ------------*/
@@ -31,13 +25,12 @@ public abstract class Node extends AbstractActor {
 	// List of updates
 	protected List<ArrayList<Update>> waitingList = new ArrayList<ArrayList<Update>>();
 
-	
+	protected boolean isCrashed = false;
 	private boolean isCoordinator = false;
 	private int value;
 	private ActorRef sender;
-	protected Cancellable currentTimeout;
+	// protected Cancellable currentTimeout;
 	protected List<Integer> crashedNodes;
-	
 
 	public enum toMessages {
 		UPDATE, WRITEOK, HEARTBEAT, ACK
@@ -64,7 +57,7 @@ public abstract class Node extends AbstractActor {
 	}
 
 	public void setCoordinator(boolean bool) {
-		this.isCoordinator = bool ;
+		this.isCoordinator = bool;
 	}
 
 	public boolean isCoordinator() {
@@ -91,7 +84,9 @@ public abstract class Node extends AbstractActor {
 
 	public void multicast(final Serializable m) {
 		for (final Map.Entry<Integer, ActorRef> p : network.entrySet()) {
-			p.getValue().tell(m, getSelf());
+			if (!isCrashed) {
+				p.getValue().tell(m, getSelf());
+			}
 		}
 	}
 
@@ -110,7 +105,7 @@ public abstract class Node extends AbstractActor {
 
 	// schedule a Timeout message in specified time
 	void setTimeout(int time, toMessages toMess) {
-		this.currentTimeout = getContext().system().scheduler().scheduleOnce(
+		/* this.currentTimeout = */getContext().system().scheduler().scheduleOnce(
 				Duration.create(time, TimeUnit.MILLISECONDS), getSelf(), new Timeout(toMess), // the message to send
 				getContext().system().dispatcher(), getSelf());
 	}
@@ -133,6 +128,5 @@ public abstract class Node extends AbstractActor {
 				.matchAny(msg -> {
 				}).build();
 	}
-
 
 }
