@@ -29,7 +29,7 @@ public abstract class Node extends AbstractActor {
 	private boolean isCoordinator = false;
 	private int value;
 	private ActorRef sender;
-	// protected Cancellable currentTimeout;
+	//protected Cancellable currentTimeout;
 	protected List<Integer> crashedNodes;
 
 	public enum toMessages {

@@ -4,6 +4,7 @@ import ds1_project.Key;
 import ds1_project.TwoPhaseBroadcast;
 import ds1_project.TwoPhaseBroadcast.*;
 import scala.unchecked;
+import scala.concurrent.duration.Duration;
 import ds1_project.Requests.*;
 
 import java.util.ArrayList;
@@ -11,8 +12,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import akka.actor.ActorRef;
+import akka.actor.Cancellable;
 import akka.actor.Props;
 import ds1_project.Responses.*;
 
@@ -21,6 +24,7 @@ public class Participant extends Node {
 	final static int WRITEOK_TIMEOUT = 3000;
 	final static int UPDATE_TIMEOUT = 3000;
 	final static int ACK_TIMEOUT = 3000;
+	final static int HEARTBEAT_DELAY = 5000;
 
 	public static final int QUORUM_SIZE = ds1_project.TwoPhaseBroadcast.QUORUM_SIZE;
 
@@ -31,7 +35,10 @@ public class Participant extends Node {
 	private int epoch = 0;
 	private int sequenceNumber = 0;
 
+	private Cancellable coordinator_heartbeat_timeout;
+	private Cancellable participant_heartbeat_timeout;
 	private ActorRef coordinator;
+	private int coordinator_id;
 
 	// Flags
 	boolean quorum = false;
@@ -42,6 +49,7 @@ public class Participant extends Node {
 	public Participant(final int id, ActorRef coord) {
 		super(id);
 		this.coordinator = coord;
+		this.coordinator_id = 0;
 	}
 
 	// Coordinator
@@ -76,8 +84,9 @@ public class Participant extends Node {
 		waitingList.add(new ArrayList<Update>());
 	}
 
-	public void setCoordinator(ActorRef coord) {
+	public void setCoordinator(ActorRef coord, int id) {
 		this.coordinator = coord;
+		this.coordinator_id = id;
 	}
 
 	public ActorRef getCoordinator() {
@@ -89,6 +98,14 @@ public class Participant extends Node {
 	// Common
 	public void onStartMessage(final StartMessage msg) {
 		setGroup(msg);
+		if (this.isCoordinator()) {
+			sendHeartbeat();
+		} else {
+			this.participant_heartbeat_timeout = getContext().system().scheduler().scheduleOnce(
+					Duration.create(HEARTBEAT_DELAY, TimeUnit.MILLISECONDS), getSelf(),
+					new Timeout(toMessages.HEARTBEAT), getContext().system().dispatcher(), getSelf());
+		}
+
 	}
 
 	public void OnReadRequest(final ReadRequest msg) {
@@ -98,7 +115,7 @@ public class Participant extends Node {
 	public void onUpdateRequest(final UpdateRequest msg) {
 		delay();
 		if (isCoordinator()) {
-			print("Update received") ;
+			print("Update received");
 			int currentSeqNum = waitingList.get(epoch).size();
 			print("Broadcasting update with sequence number = " + (currentSeqNum) + ":" + msg.getValue());
 			Update update = new Update(this.epoch, currentSeqNum, msg.getValue());
@@ -113,31 +130,32 @@ public class Participant extends Node {
 	public void onElectionMessage(ElectionMessage msg) {
 		print("ElectionStep");
 		if (msg.getCandidatesID().contains(this.id)) {
-			int iMax = 0 ;
-			for (int i = 0 ; i<msg.getCandidatesID().size() ; i++){
-				if (msg.getLastUpdates().get(i)>msg.getLastUpdates().get(iMax)){
-					iMax = i ;
-				} else if (msg.getLastUpdates().get(i) == msg.getLastUpdates().get(iMax) && msg.getCandidatesID().get(iMax)>msg.getCandidatesID().get(i)){
-					iMax = i ;
+			int iMax = 0;
+			for (int i = 0; i < msg.getCandidatesID().size(); i++) {
+				if (msg.getLastUpdates().get(i) > msg.getLastUpdates().get(iMax)) {
+					iMax = i;
+				} else if (msg.getLastUpdates().get(i) == msg.getLastUpdates().get(iMax)
+						&& msg.getCandidatesID().get(iMax) > msg.getCandidatesID().get(i)) {
+					iMax = i;
 				}
 			}
-			if (msg.getCandidatesID().get(iMax)== this.id) { //Node won the election
+			if (msg.getCandidatesID().get(iMax) == this.id) { // Node won the election
 				this.setCoordinator(true);
 				print("I won the election");
 			} else { // Node lost
-				print("I lost : "+msg.getCandidatesID().get(iMax)+" won") ;
+				print("I lost : " + msg.getCandidatesID().get(iMax) + " won");
 			}
-			if (this.id < TwoPhaseBroadcast.N_PARTICIPANTS) { //Forwarding the election message
+			if (this.id < TwoPhaseBroadcast.N_PARTICIPANTS) { // Forwarding the election message
 				int destinationID = this.id + 1;
 				while (crashedNodes.contains(destinationID)) {
 					destinationID++;
 				}
 				network.get(destinationID).tell(msg, self());
 			}
-			this.coordinator = network.get(msg.getCandidatesID().get(iMax));
+			setCoordinator(network.get(msg.getCandidatesID().get(iMax)), iMax);
 			epochInit();
 			print("Election complete");
-			isElecting = false ;
+			isElecting = false;
 		} else {
 			// msg.addCandidate(this.id, this.sequenceNumber);
 			int destinationID = this.id + 1;
@@ -165,7 +183,7 @@ public class Participant extends Node {
 
 		if (msg.toMess == toMessages.UPDATE) {
 			print(" update Timeout:" + "Coordinator Crash");
-			multicast(new CrashedNodeWarning(0));
+			multicast(new CrashedNodeWarning(this.coordinator_id));
 
 			print(" Send election message");
 			startElection();
@@ -175,10 +193,22 @@ public class Participant extends Node {
 		if (msg.toMess == toMessages.WRITEOK) {
 
 			print("WriteOk Timeout:" + "Coordinator Crash");
-			multicast(new CrashedNodeWarning(0));
+			multicast(new CrashedNodeWarning(this.coordinator_id));
 			print(" Send election message");
 			startElection();
 
+		}
+
+		if (msg.toMess == toMessages.HEARTBEAT) {
+			if (this.isCoordinator()) {
+				sendHeartbeat();
+			} else {
+				print("Heartbeat timeout : Coordinator crashed");
+				this.crashedNodes.add(this.coordinator_id);
+				multicast(new CrashedNodeWarning(this.coordinator_id));
+				print(" Send election message");
+				startElection();
+			}
 		}
 
 	}
@@ -236,6 +266,18 @@ public class Participant extends Node {
 		}
 	}
 
+	public void sendHeartbeat() {
+		if (coordinator_heartbeat_timeout != null) {
+			coordinator_heartbeat_timeout.cancel();
+		}
+		coordinator_heartbeat_timeout = getContext().system().scheduler().scheduleOnce(
+				Duration.create(HEARTBEAT_DELAY / 2, TimeUnit.MILLISECONDS), getSelf(),
+				new Timeout(toMessages.HEARTBEAT), // the message to send
+				getContext().system().dispatcher(), getSelf());
+		multicast(new Heartbeat());
+
+	}
+
 	// Participant methods
 
 	public void onWriteOK(final WriteOk msg) {
@@ -245,6 +287,7 @@ public class Participant extends Node {
 		 */
 		print("Received WriteOk for e=" + msg.getRequest_epoch() + " and s=" + msg.getRequest_seqnum());
 		if (msg.getRequest_seqnum() > sequenceNumber) {
+			this.waitingList.get(msg.getRequest_epoch()).get(msg.getRequest_seqnum()).setValidity(true);
 			this.setValue(waitingList.get(msg.getRequest_epoch()).get(msg.getRequest_seqnum()).getValue());
 			print("Updated value :" + this.getValue());
 			sequenceNumber = msg.getRequest_seqnum();
@@ -268,6 +311,16 @@ public class Participant extends Node {
 		System.out.println("");
 	}
 
+	public void onHeartbeat(Heartbeat ping) {
+		this.participant_heartbeat_timeout.cancel();
+		this.participant_heartbeat_timeout = getContext().system().scheduler().scheduleOnce(
+				Duration.create(HEARTBEAT_DELAY, TimeUnit.MILLISECONDS), getSelf(), new Timeout(toMessages.HEARTBEAT), // the
+																														// message
+																														// to
+																														// send
+				getContext().system().dispatcher(), getSelf());
+	}
+
 	@Override
 	public Receive createReceive() {
 		return receiveBuilder().match(StartMessage.class, this::onStartMessage).match(WriteOk.class, this::onWriteOK)
@@ -275,7 +328,7 @@ public class Participant extends Node {
 				.match(ReadRequest.class, this::OnReadRequest).match(Timeout.class, this::onTimeout)
 				.match(CrashedNodeWarning.class, this::OnCrashedNodeWarning)
 				.match(ElectionMessage.class, this::onElectionMessage)
-				.match(Acknowledgement.class, this::onReceivingAck)
+				.match(Acknowledgement.class, this::onReceivingAck).match(Heartbeat.class, this::onHeartbeat)
 				// .match(Recovery.class, this::onRecovery)
 				.build();
 	}
@@ -293,21 +346,21 @@ public class Participant extends Node {
 
 	public void startElection() {
 		if (!isElecting) {
-			isElecting = true ;
+			isElecting = true;
 			print("Starting election process");
 			String electionID = "" + epoch + id;
 			ElectionMessage msg = new ElectionMessage((electionID));
 			int destinationID = this.id + 1;
-			
+
 			while (crashedNodes.contains(destinationID)) {
 				destinationID++;
 			}
 			msg.addCandidate(this.id, this.sequenceNumber); // last implemented update -> maybe go for most recent
 															// update in
 															// waiting list
-			ActorRef temp = network.get(destinationID) ;
+			ActorRef temp = network.get(destinationID);
 			if (this.id != TwoPhaseBroadcast.N_PARTICIPANTS) {
-				network.get(destinationID).tell(msg, self()); //to fix
+				network.get(destinationID).tell(msg, self()); // to fix
 			}
 		}
 	}
@@ -322,6 +375,7 @@ public class Participant extends Node {
 		this.setCoordinator(true);
 		epochInit();
 		// Enforce last known update
+		//search backwards the waiting list :  first update .isValidated == true -> multicast writeok
 	}
 
 }
