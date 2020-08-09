@@ -298,6 +298,8 @@ public class Participant extends Node {
 				i--;
 			}
 			if (found) {
+				//Coordinator crashed before sending writeOk message
+				//this.crash();
 				print("Majority of ACK - Sending WriteOK messages for s=" + toImplement.getSequenceNumber());
 				multicast(new WriteOk(true, toImplement.getEpoch(), toImplement.getSequenceNumber(), this.id, false));
 				sequenceNumber = toImplement.getSequenceNumber();
