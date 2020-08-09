@@ -21,7 +21,7 @@ import ds1_project.Responses.*;
 
 public class Participant extends Node {
 	// Timeout values
-	final static int WRITEOK_TIMEOUT = 3000;
+	final static int WRITEOK_TIMEOUT = 9000;
 	final static int UPDATE_TIMEOUT = 3000;
 	final static int ACK_TIMEOUT = 3000;
 	final static int HEARTBEAT_DELAY = 5000;
@@ -35,8 +35,11 @@ public class Participant extends Node {
 	private int epoch = 0;
 	private int sequenceNumber = 0;
 
-	private Cancellable coordinator_heartbeat_timeout;
-	private Cancellable participant_heartbeat_timeout;
+	private Cancellable heartbeat_timeout;
+
+	private Cancellable currentTimeout;
+
+	private HashMap<Integer, Cancellable> nodeTimeouts = new HashMap<Integer, Cancellable>();
 	private ActorRef coordinator;
 	private int coordinator_id;
 
@@ -82,6 +85,9 @@ public class Participant extends Node {
 		sequenceNumber = 0;
 		this.epoch = this.epoch + 1;
 		waitingList.add(new ArrayList<Update>());
+		if (this.isCoordinator()) {
+			coordinatorEpochLaunch();
+		}
 	}
 
 	public void setCoordinator(ActorRef coord, int id) {
@@ -100,11 +106,10 @@ public class Participant extends Node {
 		setGroup(msg);
 		if (this.isCoordinator()) {
 			sendHeartbeat();
-		} else {
-			this.participant_heartbeat_timeout = getContext().system().scheduler().scheduleOnce(
-					Duration.create(HEARTBEAT_DELAY, TimeUnit.MILLISECONDS), getSelf(),
-					new Timeout(toMessages.HEARTBEAT), getContext().system().dispatcher(), getSelf());
 		}
+		this.heartbeat_timeout = getContext().system().scheduler().scheduleOnce(
+				Duration.create(HEARTBEAT_DELAY, TimeUnit.MILLISECONDS), getSelf(),
+				new Timeout(toMessages.HEARTBEAT, coordinator_id), getContext().system().dispatcher(), getSelf());
 
 	}
 
@@ -118,11 +123,33 @@ public class Participant extends Node {
 			print("Update received");
 			int currentSeqNum = waitingList.get(epoch).size();
 			print("Broadcasting update with sequence number = " + (currentSeqNum) + ":" + msg.getValue());
-			Update update = new Update(this.epoch, currentSeqNum, msg.getValue());
+			Update update = new Update(this.epoch, currentSeqNum, msg.getValue(), this.id);
 			multicast(update);
 			waitingList.get(epoch).add(update);
+
+			// start timeout for each node in the system
+			/*
+			 * for (Map.Entry<Integer, ActorRef> entry : network.entrySet()) { if
+			 * (entry.getKey()!=this.id && !crashedNodes.contains(entry.getValue())) {
+			 * //print("Setting timeout for node " + entry.getKey()) ;
+			 * nodeTimeouts.put(entry.getKey(),
+			 * getContext().system().scheduler().scheduleOnce(
+			 * Duration.create(UPDATE_TIMEOUT, TimeUnit.MILLISECONDS), getSelf(), new
+			 * Timeout(toMessages.UPDATE, entry.getKey()), // the message to send
+			 * getContext().system().dispatcher(), getSelf())); } }
+			 */
+
 		} else {
 			coordinator.tell(msg, self()); // forward to corrdinator
+			// Start timeout
+			nodeTimeouts.put(coordinator_id,
+					getContext().system().scheduler().scheduleOnce(
+							Duration.create(UPDATE_TIMEOUT, TimeUnit.MILLISECONDS), getSelf(),
+							new Timeout(toMessages.UPDATE, coordinator_id), // the
+							// message
+							// to
+							// send
+							getContext().system().dispatcher(), getSelf()));
 		}
 
 	}
@@ -153,6 +180,8 @@ public class Participant extends Node {
 				network.get(destinationID).tell(msg, self());
 			}
 			setCoordinator(network.get(msg.getCandidatesID().get(iMax)), iMax);
+			this.coordinator_id = iMax ;
+			print("Coordiantor id" + this.coordinator_id) ;
 			epochInit();
 			print("Election complete");
 			isElecting = false;
@@ -181,22 +210,27 @@ public class Participant extends Node {
 
 	public void onTimeout(Timeout msg) {
 
-		if (msg.toMess == toMessages.UPDATE) {
-			print(" update Timeout:" + "Coordinator Crash");
-			multicast(new CrashedNodeWarning(this.coordinator_id));
+		if (msg.getWatchingNode() != this.id) {
 
-			print(" Send election message");
-			startElection();
+			if (msg.toMess == toMessages.UPDATE) {
+				print("Update Timeout:" + "Node " + msg.getWatchingNode() + " Crashed");
+				multicast(new CrashedNodeWarning(msg.getWatchingNode()));
 
-		}
+				if (msg.getWatchingNode() == this.coordinator_id) {
+					print(" Send election message");
+					startElection();
+				}
 
-		if (msg.toMess == toMessages.WRITEOK) {
+			}
 
-			print("WriteOk Timeout:" + "Coordinator Crash");
-			multicast(new CrashedNodeWarning(this.coordinator_id));
-			print(" Send election message");
-			startElection();
+			if (msg.toMess == toMessages.WRITEOK) {
 
+				print("WriteOk Timeout:" + "Coordinator Crash");
+				multicast(new CrashedNodeWarning(this.coordinator_id));
+				print(" Send election message");
+				startElection();
+
+			}
 		}
 
 		if (msg.toMess == toMessages.HEARTBEAT) {
@@ -213,10 +247,19 @@ public class Participant extends Node {
 
 	}
 
+	public void onCrashRequest(CrashRequest msg){
+		this.crash();
+	}
+
 	// Coordinator methods
 
 	public void onReceivingAck(Acknowledgement msg) {
 		delay();
+		if (nodeTimeouts.containsKey(msg.getSender_id()) && nodeTimeouts.get(msg.getSender_id()) != null) {
+			nodeTimeouts.get(msg.getSender_id()).cancel();
+			// print("Cancelled Update Timeout for "+msg.getSender_id());
+		}
+		print("received ack from "+msg.getSender_id()) ;
 		Acknowledge ack = (msg).ack;
 		// print("Received ACK from "+sender()+" with seqnum "+msg.getRequest_seqnum())
 		// ;
@@ -244,7 +287,7 @@ public class Participant extends Node {
 		Quorum(key);
 
 		if (newUpdate) {
-			Update toImplement = new Update(0, 0, 0);
+			Update toImplement = new Update(0, 0, 0, this.coordinator_id);
 			int i = waitingList.get(epoch).size() - 1;
 			boolean found = false;
 			while (i >= 0 && !found) {
@@ -255,9 +298,8 @@ public class Participant extends Node {
 				i--;
 			}
 			if (found) {
-				this.crash();
 				print("Majority of ACK - Sending WriteOK messages for s=" + toImplement.getSequenceNumber());
-				multicast(new WriteOk(true, toImplement.getEpoch(), toImplement.getSequenceNumber()));
+				multicast(new WriteOk(true, toImplement.getEpoch(), toImplement.getSequenceNumber(), this.id, false));
 				sequenceNumber = toImplement.getSequenceNumber();
 				this.setValue(toImplement.getValue());
 				print("Updated value :" + this.getValue());
@@ -267,12 +309,13 @@ public class Participant extends Node {
 	}
 
 	public void sendHeartbeat() {
-		if (coordinator_heartbeat_timeout != null) {
-			coordinator_heartbeat_timeout.cancel();
+		if (heartbeat_timeout != null) {
+			heartbeat_timeout.cancel();
 		}
-		coordinator_heartbeat_timeout = getContext().system().scheduler().scheduleOnce(
+		print("sent new heartbeat");
+		heartbeat_timeout = getContext().system().scheduler().scheduleOnce(
 				Duration.create(HEARTBEAT_DELAY / 2, TimeUnit.MILLISECONDS), getSelf(),
-				new Timeout(toMessages.HEARTBEAT), // the message to send
+				new Timeout(toMessages.HEARTBEAT, coordinator_id), // the message to send
 				getContext().system().dispatcher(), getSelf());
 		multicast(new Heartbeat());
 
@@ -282,9 +325,10 @@ public class Participant extends Node {
 
 	public void onWriteOK(final WriteOk msg) {
 		delay();
-		/*
-		 * if (this.currentTimeout != null) { this.currentTimeout.cancel(); }
-		 */
+		if (nodeTimeouts.containsKey(msg.getSender_id()) && nodeTimeouts.get(msg.getSender_id()) != null) {
+			nodeTimeouts.get(msg.getSender_id()).cancel();
+		}
+
 		print("Received WriteOk for e=" + msg.getRequest_epoch() + " and s=" + msg.getRequest_seqnum());
 		if (msg.getRequest_seqnum() > sequenceNumber) {
 			this.waitingList.get(msg.getRequest_epoch()).get(msg.getRequest_seqnum()).setValidity(true);
@@ -292,32 +336,48 @@ public class Participant extends Node {
 			print("Updated value :" + this.getValue());
 			sequenceNumber = msg.getRequest_seqnum();
 			print("SequenceNumber : " + this.sequenceNumber);
+		} else if (msg.isElectionInstalment()) {
+			this.waitingList.get(msg.getRequest_epoch()).get(msg.getRequest_seqnum()).setValidity(true);
+			this.setValue(waitingList.get(msg.getRequest_epoch()).get(msg.getRequest_seqnum()).getValue());
+			print("Updated value :" + this.getValue());
 		}
 	}
 
 	public void onUpdate(Update msg) { // Update propagates from coordinator
+
 		delay();
-		/*
-		 * if (this.currentTimeout != null) { this.currentTimeout.cancel(); }
-		 */
+		if (nodeTimeouts.containsKey(msg.getSender_id()) && nodeTimeouts.get(msg.getSender_id()) != null) {
+			nodeTimeouts.get(msg.getSender_id()).cancel();
+		}
 
 		waitingList.get(msg.getEpoch()).add(msg);
 		print("queued value" + waitingList.get(msg.getEpoch()).get(msg.getSequenceNumber()).getValue()
 				+ "at sequence number " + msg.getSequenceNumber());
-		Acknowledgement acknowledgement = new Acknowledgement(Acknowledge.ACK, msg.getEpoch(), msg.getSequenceNumber());
+		Acknowledgement acknowledgement = new Acknowledgement(Acknowledge.ACK, msg.getEpoch(), msg.getSequenceNumber(),
+				this.id);
 		this.coordinator.tell(acknowledgement, getSelf());
 		this.print("ACK sent for (" + msg.getEpoch() + ", " + msg.getSequenceNumber() + ", " + msg.getValue() + ")");
-		setTimeout(WRITEOK_TIMEOUT, toMessages.WRITEOK);
+		nodeTimeouts.put(coordinator_id,
+				getContext().system().scheduler().scheduleOnce(Duration.create(WRITEOK_TIMEOUT, TimeUnit.MILLISECONDS),
+						getSelf(), new Timeout(toMessages.WRITEOK, coordinator_id), // the
+						// message
+						// to
+						// send
+						getContext().system().dispatcher(), getSelf()));
 		System.out.println("");
 	}
 
 	public void onHeartbeat(Heartbeat ping) {
-		this.participant_heartbeat_timeout.cancel();
-		this.participant_heartbeat_timeout = getContext().system().scheduler().scheduleOnce(
-				Duration.create(HEARTBEAT_DELAY, TimeUnit.MILLISECONDS), getSelf(), new Timeout(toMessages.HEARTBEAT), // the
-																														// message
-																														// to
-																														// send
+		if (this.heartbeat_timeout != null) {
+			this.heartbeat_timeout.cancel();
+		}
+		print("Heartbeat received");
+		this.heartbeat_timeout = getContext().system().scheduler().scheduleOnce(
+				Duration.create(HEARTBEAT_DELAY, TimeUnit.MILLISECONDS), getSelf(),
+				new Timeout(toMessages.HEARTBEAT, coordinator_id), // the
+				// message
+				// to
+				// send
 				getContext().system().dispatcher(), getSelf());
 	}
 
@@ -329,6 +389,7 @@ public class Participant extends Node {
 				.match(CrashedNodeWarning.class, this::OnCrashedNodeWarning)
 				.match(ElectionMessage.class, this::onElectionMessage)
 				.match(Acknowledgement.class, this::onReceivingAck).match(Heartbeat.class, this::onHeartbeat)
+				.match(CrashRequest.class, this::onCrashRequest)
 				// .match(Recovery.class, this::onRecovery)
 				.build();
 	}
@@ -372,10 +433,22 @@ public class Participant extends Node {
 	}
 
 	public void coordinatorEpochLaunch() {
-		this.setCoordinator(true);
-		epochInit();
 		// Enforce last known update
-		//search backwards the waiting list :  first update .isValidated == true -> multicast writeok
+		// search backwards the waiting list : first update .isValidated == true ->
+		// multicast writeok
+		boolean found = false;
+		this.coordinator_id = this.id ;
+		int i = waitingList.get(epoch - 1).size() - 1;
+		while (!found && i >= 0) {
+			if (waitingList.get(epoch - 1).get(i).isValidated()) {
+				// multicast writeOKs
+				found = true;
+				Update toImplement = waitingList.get(epoch - 1).get(i);
+				print("Multicasting last known update");
+				multicast(new WriteOk(true, toImplement.getEpoch(), toImplement.getSequenceNumber(), this.id, true));
+			}
+			i--;
+		}
 	}
 
 }

@@ -16,11 +16,14 @@ public class Acknowledgement implements Serializable {
 	private final int request_epoch;
 	private final int request_seqnum;
 
-	public Acknowledgement(final Acknowledge ack, final int request_epoch, final int request_seqnum) {
+	private final int sender_id;
+
+	public Acknowledgement(final Acknowledge ack, final int request_epoch, final int request_seqnum, int sender_id) {
 		super();
 		this.ack = ack;
 		this.request_epoch = request_epoch;
 		this.request_seqnum = request_seqnum;
+		this.sender_id = sender_id ;
 	}
 
 	public int getRequest_epoch() {
@@ -29,6 +32,10 @@ public class Acknowledgement implements Serializable {
 
 	public int getRequest_seqnum() {
 		return request_seqnum;
+	}
+
+	public int getSender_id() {
+		return sender_id;
 	}
 
 	@Override

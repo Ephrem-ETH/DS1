@@ -11,10 +11,16 @@ public class Timeout implements Serializable {
 	 */
 	private static final long serialVersionUID = 1L;
 	public toMessages toMess;
+	private int watchingNode;
 
-	public Timeout(toMessages toMess) {
+	public Timeout(toMessages toMess,int node) {
 		super();
 		this.toMess = toMess;
+		watchingNode = node ;
+	}
+
+	public int getWatchingNode() {
+		return watchingNode;
 	}
 
 }

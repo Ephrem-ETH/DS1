@@ -104,9 +104,9 @@ public abstract class Node extends AbstractActor {
 	}
 
 	// schedule a Timeout message in specified time
-	void setTimeout(int time, toMessages toMess) {
+	void setTimeout(int time, toMessages toMess, int node_id) {
 		/* this.currentTimeout = */getContext().system().scheduler().scheduleOnce(
-				Duration.create(time, TimeUnit.MILLISECONDS), getSelf(), new Timeout(toMess), // the message to send
+				Duration.create(time, TimeUnit.MILLISECONDS), getSelf(), new Timeout(toMess,node_id), // the message to send
 				getContext().system().dispatcher(), getSelf());
 	}
 
