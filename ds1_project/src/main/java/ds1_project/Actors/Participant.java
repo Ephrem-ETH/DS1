@@ -119,10 +119,12 @@ public class Participant extends Node {
 			int currentSeqNum = waitingList.get(epoch).size();
 			print("Broadcasting update with sequence number = " + (currentSeqNum) + ":" + msg.getValue());
 			Update update = new Update(this.epoch, currentSeqNum, msg.getValue());
+			// Coordinator may crash before propagating the update to cohorts
+			this.crash();
 			multicast(update);
 			waitingList.get(epoch).add(update);
 		} else {
-			coordinator.tell(msg, self()); // forward to corrdinator
+			coordinator.tell(msg, self()); // forward to coordinator
 		}
 
 	}
@@ -255,7 +257,8 @@ public class Participant extends Node {
 				i--;
 			}
 			if (found) {
-				this.crash();
+				//Coordinator crashed before sending writeOk message
+				//this.crash();
 				print("Majority of ACK - Sending WriteOK messages for s=" + toImplement.getSequenceNumber());
 				multicast(new WriteOk(true, toImplement.getEpoch(), toImplement.getSequenceNumber()));
 				sequenceNumber = toImplement.getSequenceNumber();
