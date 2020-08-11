@@ -118,7 +118,7 @@ public class TwoPhaseBroadcast {
 		} catch (final IOException ignored) {
 		}
 
-		coordinator.tell(new CrashRequest(),client);
+		//coordinator.tell(new CrashRequest(),client);
 		try {
 			System.out.println(">>> Press ENTER to continue <<<");
 			System.in.read();
@@ -132,7 +132,6 @@ public class TwoPhaseBroadcast {
 			System.in.read();
 		} catch (final IOException ignored) {
 		}
-		coordinator.tell(new ReadRequest(), client);
 		group.get(1).tell(new ReadRequest(), client);
 		group.get(2).tell(new ReadRequest(), client);
 		group.get(3).tell(new ReadRequest(), client);
@@ -147,12 +146,13 @@ public class TwoPhaseBroadcast {
 			System.in.read();
 		} catch (final IOException ignored) {
 		}
-		coordinator.tell(new ReadRequest(), client);
+
 		group.get(1).tell(new ReadRequest(), client);
 		group.get(2).tell(new ReadRequest(), client);
 		group.get(3).tell(new ReadRequest(), client);
 		group.get(4).tell(new ReadRequest(), client);
 		group.get(5).tell(new ReadRequest(), client);
+
 
 		try {
 			System.out.println(">>> Press ENTER to exit <<<");

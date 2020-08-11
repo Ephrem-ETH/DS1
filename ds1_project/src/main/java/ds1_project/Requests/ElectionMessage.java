@@ -12,12 +12,14 @@ public class ElectionMessage implements Serializable {
      */
     private static final long serialVersionUID = 1L;
     
-    private String electionID; // Epoch number + (concatenation) emmiter ID
+    private int electionEpoch; // Epoch number + (concatenation) emmiter ID
+    private int emmiter_id ;
     private List<Integer> candidatesID ;
     private List<Integer> lastUpdates ;
 
-    public ElectionMessage(String id){
-        electionID = id ;
+    public ElectionMessage(int epoch, int id){
+        emmiter_id = id ;
+        electionEpoch = epoch ;
         candidatesID = new ArrayList<Integer>() ;
         lastUpdates = new ArrayList<Integer>();
     }
@@ -27,8 +29,12 @@ public class ElectionMessage implements Serializable {
         lastUpdates.add(lastUpdate) ;
     }
 
-    public String getID(){
-        return this.electionID ;
+    public int getElectionEpoch() {
+        return electionEpoch;
+    }
+
+    public int getEmmiter_id() {
+        return emmiter_id;
     }
 
     public List<Integer> getCandidatesID() {
