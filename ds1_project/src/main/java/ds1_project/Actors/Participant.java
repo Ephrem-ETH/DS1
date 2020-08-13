@@ -36,8 +36,7 @@ public class Participant extends Node {
 	private int sequenceNumber = 0;
 
 	private Cancellable heartbeat_timeout;
-
-	private Cancellable currentTimeout;
+	private Cancellable election_timeout ;
 
 	private HashMap<Integer, Cancellable> nodeTimeouts = new HashMap<Integer, Cancellable>();
 	private ActorRef coordinator;
@@ -128,16 +127,17 @@ public class Participant extends Node {
 			waitingList.get(epoch).add(update);
 
 			// start timeout for each node in the system
-			/*
-			 * for (Map.Entry<Integer, ActorRef> entry : network.entrySet()) { if
-			 * (entry.getKey()!=this.id && !crashedNodes.contains(entry.getValue())) {
-			 * //print("Setting timeout for node " + entry.getKey()) ;
-			 * nodeTimeouts.put(entry.getKey(),
-			 * getContext().system().scheduler().scheduleOnce(
-			 * Duration.create(UPDATE_TIMEOUT, TimeUnit.MILLISECONDS), getSelf(), new
-			 * Timeout(toMessages.UPDATE, entry.getKey()), // the message to send
-			 * getContext().system().dispatcher(), getSelf())); } }
-			 */
+
+			for (Map.Entry<Integer, ActorRef> entry : network.entrySet()) {
+				if (entry.getKey() != this.id && !crashedNodes.contains(entry.getValue())) {
+					// print("Setting timeout for node " + entry.getKey()) ;
+					nodeTimeouts.put(entry.getKey(),
+							getContext().system().scheduler().scheduleOnce(
+									Duration.create(UPDATE_TIMEOUT, TimeUnit.MILLISECONDS), getSelf(),
+									new Timeout(toMessages.UPDATE, entry.getKey()), // the message to send
+									getContext().system().dispatcher(), getSelf()));
+				}
+			}
 
 		} else {
 			coordinator.tell(msg, self()); // forward to corrdinator
@@ -180,7 +180,7 @@ public class Participant extends Node {
 				print("I lost : " + msg.getCandidatesID().get(iMax) + " won");
 			}
 
-			if (msg.getEmmiter_id() != this.id) { //Forward the election message
+			if (msg.getEmmiter_id() != this.id) { // Forward the election message
 				int destinationID = this.id + 1;
 
 				if (this.id == TwoPhaseBroadcast.N_PARTICIPANTS) {
@@ -213,6 +213,10 @@ public class Participant extends Node {
 															// waiting list
 			network.get(destinationID).tell(msg, self());
 		}
+	}
+
+	public void onElectionAck(ElectionAck msg){
+		// TODO Ephrem
 	}
 
 	void OnCrashedNodeWarning(CrashedNodeWarning msg) {
@@ -313,10 +317,10 @@ public class Participant extends Node {
 			}
 			if (found) {
 				// Coordinator crashed before sending writeOk message
-				this.crash();
+				// this.crash();
 				print("Majority of ACK - Sending WriteOK messages for s=" + toImplement.getSequenceNumber());
 				multicast(new WriteOk(true, toImplement.getEpoch(), toImplement.getSequenceNumber(), this.id, false));
-				// crash();
+				crash();
 				sequenceNumber = toImplement.getSequenceNumber();
 				this.setValue(toImplement.getValue());
 				print("Updated value :" + this.getValue());
@@ -328,17 +332,21 @@ public class Participant extends Node {
 	public void sendHeartbeat() {
 		if (heartbeat_timeout != null) {
 			heartbeat_timeout.cancel();
+			heartbeat_timeout = null;
 		}
-		print("sent new heartbeat");
-		heartbeat_timeout = getContext().system().scheduler().scheduleOnce(
+		// print("sent new heartbeat");
+		this.heartbeat_timeout = getContext().system().scheduler().scheduleOnce(
 				Duration.create(HEARTBEAT_DELAY / 5, TimeUnit.MILLISECONDS), getSelf(),
 				new Timeout(toMessages.HEARTBEAT, coordinator_id), // the message to send
 				getContext().system().dispatcher(), getSelf());
 		multicast(new Heartbeat());
-
 	}
 
 	// Participant methods
+
+	public void onSychronizationMessage(Synchronization msg){
+		//todo Thomas
+	}
 
 	public void onWriteOK(final WriteOk msg) {
 		delay();
@@ -385,30 +393,56 @@ public class Participant extends Node {
 	}
 
 	public void onHeartbeat(Heartbeat ping) {
-		if (this.heartbeat_timeout != null) {
-			this.heartbeat_timeout.cancel();
+		if (!this.isCoordinator()) {
+			if (this.heartbeat_timeout != null) {
+				this.heartbeat_timeout.cancel();
+				for (Map.Entry<Integer, Cancellable> entry : nodeTimeouts.entrySet()) {
+					entry.getValue().cancel();
+				}
+			}
+
+			// print("Heartbeat received");
+			this.heartbeat_timeout = getContext().system().scheduler().scheduleOnce(
+					Duration.create(HEARTBEAT_DELAY, TimeUnit.MILLISECONDS), getSelf(),
+					new Timeout(toMessages.HEARTBEAT, coordinator_id), // the
+					// message
+					// to
+					// send
+					getContext().system().dispatcher(), getSelf());
 		}
-		// print("Heartbeat received");
-		this.heartbeat_timeout = getContext().system().scheduler().scheduleOnce(
-				Duration.create(HEARTBEAT_DELAY, TimeUnit.MILLISECONDS), getSelf(),
-				new Timeout(toMessages.HEARTBEAT, coordinator_id), // the
-				// message
-				// to
-				// send
-				getContext().system().dispatcher(), getSelf());
 	}
 
 	@Override
-	public Receive createReceive() {
-		return receiveBuilder().match(StartMessage.class, this::onStartMessage).match(WriteOk.class, this::onWriteOK)
-				.match(Update.class, this::onUpdate).match(UpdateRequest.class, this::onUpdateRequest)
-				.match(ReadRequest.class, this::OnReadRequest).match(Timeout.class, this::onTimeout)
+	public Receive createReceive() { // Standard mode
+		return receiveBuilder()
+				.match(StartMessage.class, this::onStartMessage)
+				.match(WriteOk.class, this::onWriteOK)
+				.match(Update.class, this::onUpdate)
+				.match(UpdateRequest.class, this::onUpdateRequest)
+				.match(ReadRequest.class, this::OnReadRequest)
+				.match(Timeout.class, this::onTimeout)
 				.match(CrashedNodeWarning.class, this::OnCrashedNodeWarning)
 				.match(ElectionMessage.class, this::onElectionMessage)
-				.match(Acknowledgement.class, this::onReceivingAck).match(Heartbeat.class, this::onHeartbeat)
+				.match(Acknowledgement.class, this::onReceivingAck)
+				.match(Heartbeat.class, this::onHeartbeat)
 				.match(CrashRequest.class, this::onCrashRequest)
 				// .match(Recovery.class, this::onRecovery)
 				.build();
+	}
+
+	public Receive electionReceive() { //Election mode
+		return receiveBuilder().match(CrashedNodeWarning.class, this::OnCrashedNodeWarning)
+				.match(ElectionMessage.class, this::onElectionMessage)
+				.match(ElectionAck.class, this::onElectionAck)
+				.match(Synchronization.class, this::onSychronizationMessage).build();
+
+	}
+
+	public Receive crashed() { //Crashed mode
+		return receiveBuilder()
+				// .match(Recovery.class, this::onRecovery)
+				.matchAny(msg -> {
+				}).build();
 	}
 
 	// Utility methods
@@ -436,15 +470,16 @@ public class Participant extends Node {
 			while (crashedNodes.contains(destinationID)) {
 				destinationID++;
 			}
-			if(destinationID > TwoPhaseBroadcast.N_PARTICIPANTS){
-				destinationID = 0 ;
+			if (destinationID > TwoPhaseBroadcast.N_PARTICIPANTS) {
+				destinationID = 0;
 				while (crashedNodes.contains(destinationID)) {
 					destinationID++;
 				}
 			}
-			//msg.addCandidate(this.id, this.sequenceNumber); // last implemented update -> maybe go for most recent
-															// update in
-															// waiting list
+			// msg.addCandidate(this.id, this.sequenceNumber); // last implemented update ->
+			// maybe go for most recent
+			// update in
+			// waiting list
 
 			network.get(destinationID).tell(msg, self()); // to fix
 

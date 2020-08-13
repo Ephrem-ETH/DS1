@@ -84,7 +84,7 @@ public abstract class Node extends AbstractActor {
 
 	public void multicast(final Serializable m) {
 		for (final Map.Entry<Integer, ActorRef> p : network.entrySet()) {
-			if (!isCrashed) {
+			if (!isCrashed && p!=self()) {
 				p.getValue().tell(m, getSelf());
 			}
 		}
@@ -122,11 +122,5 @@ public abstract class Node extends AbstractActor {
 		return receiveBuilder().build();
 	}
 
-	public Receive crashed() {
-		return receiveBuilder()
-				// .match(Recovery.class, this::onRecovery)
-				.matchAny(msg -> {
-				}).build();
-	}
 
 }
