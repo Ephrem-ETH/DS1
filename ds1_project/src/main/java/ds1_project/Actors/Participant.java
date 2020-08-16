@@ -7,12 +7,15 @@ import scala.unchecked;
 import scala.concurrent.duration.Duration;
 import ds1_project.Requests.*;
 
+import java.beans.DesignMode;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+
+import org.omg.CORBA.WCharSeqHolder;
 
 import akka.actor.ActorRef;
 import akka.actor.Cancellable;
@@ -25,6 +28,7 @@ public class Participant extends Node {
 	final static int UPDATE_TIMEOUT = 3000;
 	final static int ACK_TIMEOUT = 3000;
 	final static int HEARTBEAT_DELAY = 5000;
+	final static int ELECTION_TIMEOUT = 3000 ;
 
 	public static final int QUORUM_SIZE = ds1_project.TwoPhaseBroadcast.QUORUM_SIZE;
 
@@ -42,6 +46,7 @@ public class Participant extends Node {
 	private ActorRef coordinator;
 	private int coordinator_id;
 
+	private ElectionMessage lastElectionMessage ;
 	// Flags
 	boolean quorum = false;
 	private boolean isElecting = false;
@@ -156,7 +161,13 @@ public class Participant extends Node {
 	}
 
 	public void onElectionMessage(ElectionMessage msg) {
-          
+
+		// Enter election mode
+		if (!isElecting){
+			isElecting = true ;
+			getContext().become(electionReceive());
+		}
+		// Cancel timeouts
 		for (Map.Entry<Integer, Cancellable> entry : nodeTimeouts.entrySet()) {
 			entry.getValue().cancel();
 		}
@@ -178,6 +189,7 @@ public class Participant extends Node {
 				this.setCoordinator(true);
 				print("I won the election");
 				isCoordinatorFound = true;
+				coordinatorEpochLaunch();
 			} else { // Node lost
 				print("I lost : " + msg.getCandidatesID().get(iMax) + " won");
 			}
@@ -191,6 +203,7 @@ public class Participant extends Node {
 				while (crashedNodes.contains(destinationID)) {
 					destinationID++;
 				}
+				lastElectionMessage = msg ; // save in case of crash of the next node
 				network.get(destinationID).tell(msg, self());
 				getSender().tell(new ElectionAck(Acknowledge.ACK,msg,this.id, destinationID), network.get(destinationID));
 				
@@ -199,12 +212,8 @@ public class Participant extends Node {
 			setCoordinator(network.get(msg.getCandidatesID().get(iMax)), msg.getCandidatesID().get(iMax));
 			this.coordinator_id = msg.getCandidatesID().get(iMax);
 			// print("Coordinator id " + this.coordinator_id) ;
-			epochInit();
-			// print("Election complete");
-			isElecting = false;
 
 		} else { // first turn
-			// msg.addCandidate(this.id, this.sequenceNumber);
 			int destinationID = this.id + 1;
 			if (this.id == TwoPhaseBroadcast.N_PARTICIPANTS) {
 				destinationID = 0;
@@ -214,9 +223,13 @@ public class Participant extends Node {
 			}
 			msg.addCandidate(this.id, this.sequenceNumber); // last implemented update -> maybe go for most recent
 															// update in
-															// waiting list
+		    											// waiting list
+			lastElectionMessage = msg ; // save in case of crash of the next node
+			this.election_timeout = scheduleTimeout(ELECTION_TIMEOUT, toMessages.ELECTION, destinationID) ;
 			network.get(destinationID).tell(msg, self());
-			getSender().tell(new ElectionAck(Acknowledge.ACK,msg,this.id, destinationID), network.get(destinationID));
+			print("Election message Ack");
+			// 
+			getSender().tell(new ElectionAck(Acknowledge.ACK,lastElectionMessage,this.id, destinationID), network.get(destinationID));
 		}
 		
 		// Re-propagate the election message if coordinator is not found
@@ -229,12 +242,17 @@ public class Participant extends Node {
 	
 	public void onElectionAck(ElectionAck msg){
 		// TODO Ephrem
+		int destination_id;
 		if(msg.ack == Acknowledge.ACK) {
-			
+			election_timeout.cancel();
 		}
 		else {
 			crashedNodes.add(msg.getDestination_id());
-			network.get(msg.getDestination_id() +1).tell(msg.getMsg(), network.get(msg.getSender_id()));
+			 destination_id = msg.getDestination_id()+1;
+			 while(crashedNodes.contains(destination_id)) {
+				 destination_id++;
+			 }
+			network.get(destination_id).tell(msg.getMsg(), network.get(msg.getSender_id()));
 		}
 	}
 
@@ -251,6 +269,7 @@ public class Participant extends Node {
 
 			if (msg.toMess == toMessages.UPDATE) {
 				print("Update Timeout:" + "Node " + msg.getWatchingNode() + " Crashed");
+				this.crashedNodes.add(msg.getWatchingNode()) ;
 				multicast(new CrashedNodeWarning(msg.getWatchingNode()));
 
 				if (msg.getWatchingNode() == this.coordinator_id && !this.isCoordinator()) {
@@ -263,10 +282,27 @@ public class Participant extends Node {
 			if (msg.toMess == toMessages.WRITEOK) {
 
 				print("WriteOk Timeout:" + "Coordinator Crash");
+				this.crashedNodes.add(msg.getWatchingNode()) ;
 				multicast(new CrashedNodeWarning(this.coordinator_id));
 				print(" Send election message");
 				startElection();
 
+			}
+
+			if (msg.toMess == toMessages.ELECTION ) {
+				print ("Election timeout : Node "+msg.getWatchingNode()+" crashed") ;
+				this.crashedNodes.add(msg.getWatchingNode()) ;
+				multicast(new CrashedNodeWarning(msg.getWatchingNode())) ;
+
+				//Re-send election message
+				int destinationID = msg.getWatchingNode() ;
+				if (this.id == TwoPhaseBroadcast.N_PARTICIPANTS) {
+					destinationID = 0;
+				}
+				while (crashedNodes.contains(destinationID)) {
+					destinationID++;
+				}
+				network.get(destinationID).tell(lastElectionMessage, self());
 			}
 		}
 
@@ -338,7 +374,7 @@ public class Participant extends Node {
 				// Coordinator crashed before sending writeOk message
 				// this.crash();
 				print("Majority of ACK - Sending WriteOK messages for s=" + toImplement.getSequenceNumber());
-				multicast(new WriteOk(true, toImplement.getEpoch(), toImplement.getSequenceNumber(), this.id, false));
+				multicast(new WriteOk(true, toImplement.getEpoch(), toImplement.getSequenceNumber(), this.id));
 				crash();
 				sequenceNumber = toImplement.getSequenceNumber();
 				this.setValue(toImplement.getValue());
@@ -364,7 +400,18 @@ public class Participant extends Node {
 	// Participant methods
 
 	public void onSychronizationMessage(Synchronization msg){
-		//todo Thomas
+		delay() ;
+
+		print("Received WriteOK for epoch synchronization") ;
+		this.waitingList.get(epoch).add(msg.getUpdate()) ;
+		this.setValue(msg.getUpdate().getValue());
+		this.sequenceNumber = 0;
+		this.epoch ++;
+		waitingList.add(new ArrayList<Update>());
+
+		//Changing to standard mode
+		getContext().become(createReceive());
+		
 	}
 
 	public void onWriteOK(final WriteOk msg) {
@@ -380,10 +427,6 @@ public class Participant extends Node {
 			print("Updated value :" + this.getValue());
 			sequenceNumber = msg.getRequest_seqnum();
 			print("SequenceNumber : " + this.sequenceNumber);
-		} else if (msg.isElectionInstalment()) {
-			this.waitingList.get(msg.getRequest_epoch()).get(msg.getRequest_seqnum()).setValidity(true);
-			this.setValue(waitingList.get(msg.getRequest_epoch()).get(msg.getRequest_seqnum()).getValue());
-			print("Updated value :" + this.getValue());
 		}
 	}
 
@@ -453,7 +496,9 @@ public class Participant extends Node {
 		return receiveBuilder().match(CrashedNodeWarning.class, this::OnCrashedNodeWarning)
 				.match(ElectionMessage.class, this::onElectionMessage)
 				.match(ElectionAck.class, this::onElectionAck)
-				.match(Synchronization.class, this::onSychronizationMessage).build();
+				.match(Synchronization.class, this::onSychronizationMessage)
+				.match(Timeout.class, this::onTimeout)
+				.match(CrashedNodeWarning.class, this::OnCrashedNodeWarning).build() ;
 
 	}
 
@@ -499,7 +544,7 @@ public class Participant extends Node {
 			// maybe go for most recent
 			// update in
 			// waiting list
-
+			election_timeout = scheduleTimeout(ELECTION_TIMEOUT, toMessages.ELECTION, destinationID) ;
 			network.get(destinationID).tell(msg, self()); // to fix
 
 		}
@@ -511,24 +556,35 @@ public class Participant extends Node {
 		print(" Crash!!");
 	}
 
+	public Cancellable scheduleTimeout(int duration, toMessages type, int watchingNode){
+		return getContext().system().scheduler().scheduleOnce(
+			Duration.create(duration, TimeUnit.MILLISECONDS), getSelf(),
+			new Timeout(type, watchingNode), // the message to send
+			getContext().system().dispatcher(), getSelf());
+	}
+
 	public void coordinatorEpochLaunch() {
 		// Enforce last known update
 		// search backwards the waiting list : first update .isValidated == true ->
 		// multicast writeok
 		boolean found = false;
 		this.coordinator_id = this.id;
-		int i = waitingList.get(epoch - 1).size() - 1;
+		int i = waitingList.get(epoch).size() - 1;
 		while (!found && i >= 0) {
-			if (waitingList.get(epoch - 1).get(i).isValidated()) {
+			if (waitingList.get(epoch).get(i).isValidated()) {
 				// multicast writeOKs
 				found = true;
 				Update toImplement = waitingList.get(epoch - 1).get(i);
 				print("Multicasting last known update");
-				multicast(new WriteOk(true, toImplement.getEpoch(), toImplement.getSequenceNumber(), this.id, true));
+				multicast(new Synchronization(toImplement));
 			}
 			i--;
 		}
 		sendHeartbeat();
+		epoch = epoch++;
+		sequenceNumber = 0 ;
+		isElecting = false ;
+		getContext().become(createReceive());
 	}
 
 }
