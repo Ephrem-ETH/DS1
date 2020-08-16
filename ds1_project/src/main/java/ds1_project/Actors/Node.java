@@ -33,7 +33,7 @@ public abstract class Node extends AbstractActor {
 	protected List<Integer> crashedNodes;
 
 	public enum toMessages {
-		UPDATE, WRITEOK, HEARTBEAT, ACK, ELECTION
+		UPDATE, WRITEOK, HEARTBEAT, ACK, ELECTION, ELECTION_TOTAL
 	};
 
 	public Node(final int id) {
