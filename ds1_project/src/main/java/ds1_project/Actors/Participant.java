@@ -46,6 +46,7 @@ public class Participant extends Node {
 	boolean quorum = false;
 	private boolean isElecting = false;
 	private boolean newUpdate = false;
+	private boolean isCoordinatorFound = false;
 
 	// Standard participant constructor
 	public Participant(final int id, ActorRef coord) {
@@ -155,13 +156,13 @@ public class Participant extends Node {
 	}
 
 	public void onElectionMessage(ElectionMessage msg) {
-
+          
 		for (Map.Entry<Integer, Cancellable> entry : nodeTimeouts.entrySet()) {
 			entry.getValue().cancel();
 		}
 		heartbeat_timeout.cancel();
 		// print("ElectionStep");
-
+  
 		if (msg.getCandidatesID().contains(this.id)) { // Second turn
 			int iMax = 0;
 			for (int i = 0; i < msg.getCandidatesID().size(); i++) {
@@ -176,6 +177,7 @@ public class Participant extends Node {
 			if (msg.getCandidatesID().get(iMax) == this.id) { // Node won the election
 				this.setCoordinator(true);
 				print("I won the election");
+				isCoordinatorFound = true;
 			} else { // Node lost
 				print("I lost : " + msg.getCandidatesID().get(iMax) + " won");
 			}
@@ -190,6 +192,8 @@ public class Participant extends Node {
 					destinationID++;
 				}
 				network.get(destinationID).tell(msg, self());
+				getSender().tell(new ElectionAck(Acknowledge.ACK,msg,this.id, destinationID), network.get(destinationID));
+				
 			}
 
 			setCoordinator(network.get(msg.getCandidatesID().get(iMax)), msg.getCandidatesID().get(iMax));
@@ -212,11 +216,26 @@ public class Participant extends Node {
 															// update in
 															// waiting list
 			network.get(destinationID).tell(msg, self());
+			getSender().tell(new ElectionAck(Acknowledge.ACK,msg,this.id, destinationID), network.get(destinationID));
 		}
+		
+		// Re-propagate the election message if coordinator is not found
+		if(!isCoordinatorFound) {
+			
+			
+		}
+			
 	}
-
+	
 	public void onElectionAck(ElectionAck msg){
 		// TODO Ephrem
+		if(msg.ack == Acknowledge.ACK) {
+			
+		}
+		else {
+			crashedNodes.add(msg.getDestination_id());
+			network.get(msg.getDestination_id() +1).tell(msg.getMsg(), network.get(msg.getSender_id()));
+		}
 	}
 
 	void OnCrashedNodeWarning(CrashedNodeWarning msg) {
