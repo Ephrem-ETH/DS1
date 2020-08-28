@@ -43,6 +43,9 @@ public abstract class Node extends AbstractActor {
 		this.id = id;
 		crashedNodes = new ArrayList<Integer>();
 		waitingList.add(new ArrayList<Update>());
+		Update initialUpdate = new Update(0,0,0,0) ;
+		initialUpdate.setValidity(true);
+		waitingList.get(0).add(initialUpdate) ;
 	}
 
 	// Getters and Setters

@@ -97,11 +97,11 @@ public class TwoPhaseBroadcast {
 		// Send the start messages to the coordinator
 		coordinator.tell(start, null);
 
-		/*try {
+		try {
 			System.out.println(">>> Press ENTER to continue <<<");
 			System.in.read();
 		} catch (final IOException ignored) {
-		}*/
+		}
 
 		group.get(1).tell(new ReadRequest(), client);
         
@@ -109,6 +109,7 @@ public class TwoPhaseBroadcast {
 
 		coordinator.tell(new ReadRequest(), client);
 		group.get(2).tell(new UpdateRequest(15), client);
+		coordinator.tell(new CrashRequest(),client);
 		group.get(1).tell(new UpdateRequest(10), client);
 
 

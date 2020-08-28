@@ -121,7 +121,6 @@ public class Participant extends Node {
 		this.heartbeat_timeout = getContext().system().scheduler().scheduleOnce(
 				Duration.create(HEARTBEAT_DELAY, TimeUnit.MILLISECONDS), getSelf(),
 				new Timeout(toMessages.HEARTBEAT, coordinator_id), getContext().system().dispatcher(), getSelf());
-
 	}
 
 	public void OnReadRequest(final ReadRequest msg) {
@@ -141,7 +140,8 @@ public class Participant extends Node {
 			// start timeout for each node in the system
 
 			for (Map.Entry<Integer, ActorRef> entry : network.entrySet()) {
-				if (entry.getKey() != this.id && !crashedNodes.contains(entry.getValue()) && !this.nodeTimeouts.containsKey(entry.getKey())) {
+				if (entry.getKey() != this.id && !crashedNodes.contains(entry.getValue())
+						&& !this.nodeTimeouts.containsKey(entry.getKey())) {
 					// print("Setting timeout for node " + entry.getKey()) ;
 					nodeTimeouts.put(entry.getKey(),
 							getContext().system().scheduler().scheduleOnce(
@@ -201,7 +201,7 @@ public class Participant extends Node {
 				//
 			}
 		}
-		// print("Election message Ack");
+		print("Election message Ack");
 		getSender().tell(new ElectionAck(Acknowledge.ACK, msg, this.id), self());
 
 	}
@@ -257,6 +257,9 @@ public class Participant extends Node {
 				// waiting list
 				lastElectionMessage = msg; // save in case of crash of the next node
 				network.get(destinationID).tell(msg, self());
+				if (this.election_timeout != null) {
+					this.election_timeout.cancel();
+				}
 				this.election_timeout = scheduleTimeout(ELECTION_TIMEOUT, toMessages.ELECTION, destinationID);
 
 				//
@@ -270,7 +273,7 @@ public class Participant extends Node {
 
 	public void onElectionAck(ElectionAck msg) {
 		// TODO Ephrem
-		// print("Received Election ACK");
+		print("Received Election ACK");
 		if (msg.ack == Acknowledge.ACK) {
 			if (election_timeout != null) {
 				election_timeout.cancel();
@@ -462,40 +465,47 @@ public class Participant extends Node {
 		election_timeout = null;
 		election_duration_timeout.cancel();
 		print("Received WriteOK for epoch synchronization");
-		this.waitingList.get(epoch).add(msg.getUpdate());
-		this.setValue(msg.getUpdate().getValue());
+		if (msg.getUpdate() != null) {
 
+			// Do we have a pending more recent update ?
+			int lastUpdate = this.waitingList.get(epoch).get(waitingList.get(epoch).size()-1).getSequenceNumber() ;
+			if (msg.getUpdate().getSequenceNumber() < lastUpdate) {
+				waitingList.get(epoch).get(waitingList.get(epoch).size() - 1).setEpochConsolidation(true);
+				coordinator.tell(waitingList.get(epoch).get(waitingList.get(epoch).size() - 1), self());
+			}
+
+			this.waitingList.get(epoch).add(msg.getUpdate());
+			this.setValue(msg.getUpdate().getValue());
+		} else {
+			if (waitingList.size() > 0) {
+				waitingList.get(epoch).get(waitingList.size() - 1).setEpochConsolidation(true);
+				coordinator.tell(waitingList.get(epoch).get(waitingList.size() - 1), self());
+			}
+		}
 		this.isCoordinatorFound = false;
 		lastElectionMessage = null;
 
-		// Changing to standard mode
-
-		// Do we have a pending more recent update ?
-		if (msg.getUpdate().getSequenceNumber() < this.waitingList.get(epoch).get(-1).getSequenceNumber()) {
-			waitingList.get(epoch).get(-1).setEpochConsolidation(true);
-			coordinator.tell(waitingList.get(epoch).get(-1), self());
-		}
-
 	}
-
 
 	public void onConsolidationUpdate(Update msg) {
 		delay();
 		if (msg.isEpochConsolidation()) {
 			// Add pending updates sent by other participants to a list
-			if (this.isCoordinator()){
+			if (this.isCoordinator()) {
 				pendingUpdates.add(msg);
-			}
-			else { //Implements last update
-			print("Received WriteOK for last update consolidation");
-			this.waitingList.get(epoch).add(msg);
-			this.setValue(msg.getValue());
+			} else { // Implements last update
+				print("Received WriteOK for last update consolidation");
+				this.waitingList.get(epoch).add(msg);
+				this.setValue(msg.getValue());
 
-			getContext().unbecome();
-			isElecting = false;
-			this.sequenceNumber = 0;
-			this.epoch++;
-			waitingList.add(new ArrayList<Update>());}
+				// Changing to standard mode
+
+				getContext().unbecome();
+				isElecting = false;
+				this.sequenceNumber = 0;
+				this.epoch++;
+				waitingList.add(new ArrayList<Update>());
+			}
 		}
 
 	}
@@ -585,10 +595,9 @@ public class Participant extends Node {
 		return receiveBuilder().match(CrashedNodeWarning.class, this::OnCrashedNodeWarning)
 				.match(ElectionMessage.class, this::onElectionModeMessage).match(ElectionAck.class, this::onElectionAck)
 				.match(Synchronization.class, this::onSychronizationMessage)
-				.match(EndEpoch.class, this::onEpochEndMessage)
-				.match(Update.class, this::onConsolidationUpdate)
-				.match(Timeout.class, this::onTimeout)
-				.match(CrashedNodeWarning.class, this::OnCrashedNodeWarning).build();
+				.match(EndEpoch.class, this::onEpochEndMessage).match(Update.class, this::onConsolidationUpdate)
+				.match(Timeout.class, this::onTimeout).match(CrashedNodeWarning.class, this::OnCrashedNodeWarning)
+				.build();
 
 	}
 
@@ -671,6 +680,9 @@ public class Participant extends Node {
 				multicast(new Synchronization(toImplement));
 			}
 			i--;
+		}
+		if (!found) {
+			multicast(new Synchronization(null));
 		}
 		synch_timeout = scheduleTimeout(5000, toMessages.SYNCH, this.id);
 		/*
