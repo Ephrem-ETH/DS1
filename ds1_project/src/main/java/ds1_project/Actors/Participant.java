@@ -110,6 +110,10 @@ public class Participant extends Node {
 		return this.coordinator;
 	}
 
+	public void incrementEpoch(){
+		this.epoch = this.epoch + 1 ;
+	}
+
 	// Message reception methods
 
 	// Common
@@ -131,11 +135,11 @@ public class Participant extends Node {
 		delay();
 		if (isCoordinator()) {
 			print("Update received");
-			int currentSeqNum = waitingList.get(epoch).size();
+			int currentSeqNum = waitingList.get(this.epoch).size();
 			print("Broadcasting update with sequence number = " + (currentSeqNum) + ":" + msg.getValue());
 			Update update = new Update(this.epoch, currentSeqNum, msg.getValue(), this.id);
 			multicast(update);
-			waitingList.get(epoch).add(update);
+			waitingList.get(this.epoch).add(update);
 
 			// start timeout for each node in the system
 
@@ -367,13 +371,16 @@ public class Participant extends Node {
 					}
 				}
 				multicast(toSend);
+				this.setValue(toSend.getValue());
+				this.sequenceNumber = toSend.getSequenceNumber() ;
 			} else {
 				multicast(new EndEpoch());
 			}
 			pendingUpdates = new ArrayList<Update>();
 			sendHeartbeat();
-			epoch = epoch++;
-			sequenceNumber = 0;
+			incrementEpoch();
+			this.sequenceNumber = 0;
+			waitingList.add(new ArrayList<Update>()) ;
 			isElecting = false;
 			getContext().become(createReceive());
 		}
@@ -478,7 +485,7 @@ public class Participant extends Node {
 			this.setValue(msg.getUpdate().getValue());
 		} else {
 			if (waitingList.size() > 0) {
-				waitingList.get(epoch).get(waitingList.size() - 1).setEpochConsolidation(true);
+				waitingList.get(epoch).get(waitingList.get(epoch).size() - 1).setEpochConsolidation(true);
 				coordinator.tell(waitingList.get(epoch).get(waitingList.size() - 1), self());
 			}
 		}
@@ -489,7 +496,7 @@ public class Participant extends Node {
 
 	public void onConsolidationUpdate(Update msg) {
 		delay();
-		if (msg.isEpochConsolidation()) {
+		if (msg.isEpochConsolidation() && isElecting){
 			// Add pending updates sent by other participants to a list
 			if (this.isCoordinator()) {
 				pendingUpdates.add(msg);
@@ -503,7 +510,8 @@ public class Participant extends Node {
 				getContext().unbecome();
 				isElecting = false;
 				this.sequenceNumber = 0;
-				this.epoch++;
+				incrementEpoch();
+				print("New epoch : " + this.epoch);
 				waitingList.add(new ArrayList<Update>());
 			}
 		}
@@ -514,7 +522,8 @@ public class Participant extends Node {
 		getContext().unbecome();
 		isElecting = false;
 		this.sequenceNumber = 0;
-		this.epoch++;
+		incrementEpoch();
+		print("New Epoch : " + this.epoch ) ;
 		waitingList.add(new ArrayList<Update>());
 	}
 

@@ -97,18 +97,41 @@ public class TwoPhaseBroadcast {
 		// Send the start messages to the coordinator
 		coordinator.tell(start, null);
 
+		//Launch simulation
 		try {
 			System.out.println(">>> Press ENTER to continue <<<");
 			System.in.read();
 		} catch (final IOException ignored) {
 		}
 
+		//First read request
 		group.get(1).tell(new ReadRequest(), client);
-        
-		coordinator.tell(new UpdateRequest(55), client);
 
-		coordinator.tell(new ReadRequest(), client);
+		try {
+			System.out.println(">>> Press ENTER to continue <<<");
+			System.in.read();
+		} catch (final IOException ignored) {
+		}
+		
+		// 1st update
+		coordinator.tell(new UpdateRequest(55), client);
+		try {
+			System.out.println(">>> Press ENTER to continue <<<");
+			System.in.read();
+		} catch (final IOException ignored) {
+		}
+		group.get(3).tell(new ReadRequest(), client);
+		try {
+			System.out.println(">>> Press ENTER to continue <<<");
+			System.in.read();
+		} catch (final IOException ignored) {
+		}
 		group.get(2).tell(new UpdateRequest(15), client);
+		try {
+			Thread.sleep(80);
+		} catch (Exception ignored) {
+			//TODO: handle exception
+		}
 		coordinator.tell(new CrashRequest(),client);
 		group.get(1).tell(new UpdateRequest(10), client);
 
@@ -139,13 +162,20 @@ public class TwoPhaseBroadcast {
 		group.get(4).tell(new ReadRequest(), client);
 		group.get(5).tell(new ReadRequest(), client);
 
+
+		try {
+			Thread.sleep(500);
+		} catch (Exception ignored) {
+			//TODO: handle exception
+		}
+
 		System.out.println("New update");
 		group.get(2).tell(new UpdateRequest(66), client);
 
 		try {
-			System.out.println(">>> Press ENTER to continue <<<");
-			System.in.read();
-		} catch (final IOException ignored) {
+			Thread.sleep(3000);
+		} catch (Exception ignored) {
+			//TODO: handle exception
 		}
 
 		group.get(1).tell(new ReadRequest(), client);
