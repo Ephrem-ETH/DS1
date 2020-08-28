@@ -13,6 +13,7 @@ public class Update implements Serializable {
 	private final int value;
 	private boolean isValidated ;
 	private int sender_id ;
+	private boolean isEpochConsolidation = false ;
 
 	public Update(final int epochs, final int sequencenum, final int value,int sender_id) {
 		super();
@@ -47,4 +48,11 @@ public class Update implements Serializable {
 		return sender_id;
 	}
 
+	public void setEpochConsolidation(boolean isEpochConsolidation) {
+		this.isEpochConsolidation = isEpochConsolidation;
+	}
+
+	public boolean isEpochConsolidation() {
+		return isEpochConsolidation;
+	}
 }

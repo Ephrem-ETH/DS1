@@ -25,15 +25,17 @@ public abstract class Node extends AbstractActor {
 	// List of updates
 	protected List<ArrayList<Update>> waitingList = new ArrayList<ArrayList<Update>>();
 
+	//flags
 	protected boolean isCrashed = false;
 	private boolean isCoordinator = false;
+
 	private int value;
 	private ActorRef sender;
-	//protected Cancellable currentTimeout;
+
 	protected List<Integer> crashedNodes;
 
 	public enum toMessages {
-		UPDATE, WRITEOK, HEARTBEAT, ACK, ELECTION, ELECTION_TOTAL
+		UPDATE, WRITEOK, HEARTBEAT, ACK, ELECTION, ELECTION_TOTAL, SYNCH
 	};
 
 	public Node(final int id) {
