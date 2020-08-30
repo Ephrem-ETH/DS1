@@ -16,7 +16,7 @@ public class TwoPhaseBroadcast {
 	public final static int N_PARTICIPANTS = 5;
 	public final static int REQUEST_TIMEOUT = 1000; // timeout for the votes, ms
 	// final static int DECISION_TIMEOUT = 2000; // timeout for the decision, ms
-	public final static int QUORUM_SIZE = (N_PARTICIPANTS + 1) / 2; // the votes that the participants will send (for
+	public final static int QUORUM_SIZE = (N_PARTICIPANTS + 1) / 2 +1; // the votes that the participants will send (for
 																	// testing)
 	public static int epoch_global = 0;
 	public static int value;

@@ -15,7 +15,6 @@ public class Acknowledgement implements Serializable {
 
 	private final int request_epoch;
 	private final int request_seqnum;
-
 	private final int sender_id;
 
 	public Acknowledgement(final Acknowledge ack, final int request_epoch, final int request_seqnum, int sender_id) {

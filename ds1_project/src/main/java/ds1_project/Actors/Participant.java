@@ -42,6 +42,7 @@ public class Participant extends Node {
 	private List<Update> pendingUpdates = new ArrayList<Update>();
 
 	// Working variables
+	private Acknowledgement lastSentAck;
 
 	// Current stable state
 	private int epoch = 0;
@@ -110,8 +111,8 @@ public class Participant extends Node {
 		return this.coordinator;
 	}
 
-	public void incrementEpoch(){
-		this.epoch = this.epoch + 1 ;
+	public void incrementEpoch() {
+		this.epoch = this.epoch + 1;
 	}
 
 	// Message reception methods
@@ -365,14 +366,26 @@ public class Participant extends Node {
 
 			if (pendingUpdates.size() != 0) {
 				Update toSend = pendingUpdates.get(0);
-				for (Update up : pendingUpdates) {
-					if (up.getSequenceNumber() > toSend.getSequenceNumber()) {
-						toSend = up;
+				int count = 0;
+				int i = 0;
+				while (count < QUORUM_SIZE - 1 || i < pendingUpdates.size()) { // Quorum minus 1 because previous coordinator has agreedg
+					toSend = pendingUpdates.get(i);
+					for (Update up : pendingUpdates) {
+						if (up.getSequenceNumber() == toSend.getSequenceNumber()) {
+							count++;
+						}
 					}
+					i++;
 				}
-				multicast(toSend);
-				this.setValue(toSend.getValue());
-				this.sequenceNumber = toSend.getSequenceNumber() ;
+				if (count >= QUORUM_SIZE - 1) {
+					multicast(toSend);
+					waitingList.get(epoch).add(toSend);
+					this.setValue(toSend.getValue());
+					this.sequenceNumber = toSend.getSequenceNumber();
+				} else {
+					multicast(new EndEpoch()) ;
+				}
+
 			} else {
 				multicast(new EndEpoch());
 			}
@@ -380,7 +393,7 @@ public class Participant extends Node {
 			sendHeartbeat();
 			incrementEpoch();
 			this.sequenceNumber = 0;
-			waitingList.add(new ArrayList<Update>()) ;
+			waitingList.add(new ArrayList<Update>());
 			isElecting = false;
 			getContext().become(createReceive());
 		}
@@ -472,19 +485,18 @@ public class Participant extends Node {
 		election_timeout = null;
 		election_duration_timeout.cancel();
 		print("Received WriteOK for epoch synchronization");
-		if (msg.getUpdate() != null) {
-
-			// Do we have a pending more recent update ?
-			int lastUpdate = this.waitingList.get(epoch).get(waitingList.get(epoch).size()-1).getSequenceNumber() ;
-			if (msg.getUpdate().getSequenceNumber() < lastUpdate) {
-				waitingList.get(epoch).get(waitingList.get(epoch).size() - 1).setEpochConsolidation(true);
-				coordinator.tell(waitingList.get(epoch).get(waitingList.get(epoch).size() - 1), self());
+		if (msg.getUpdate() != null && lastSentAck != null) {
+			// Is there a more recent ACKed update ?
+			if (msg.getUpdate().getSequenceNumber() < lastSentAck.getRequest_seqnum()
+					&& lastSentAck.getRequest_epoch() == epoch) {
+				waitingList.get(epoch).get(lastSentAck.getRequest_seqnum()).setEpochConsolidation(true);
+				coordinator.tell(waitingList.get(epoch).get(lastSentAck.getRequest_seqnum()), self());
 			}
-
+			// First synchronization
 			this.waitingList.get(epoch).add(msg.getUpdate());
 			this.setValue(msg.getUpdate().getValue());
 		} else {
-			if (waitingList.size() > 0) {
+			if (waitingList.size() > 0 && lastSentAck != null && lastSentAck.getRequest_epoch() == epoch) {
 				waitingList.get(epoch).get(waitingList.get(epoch).size() - 1).setEpochConsolidation(true);
 				coordinator.tell(waitingList.get(epoch).get(waitingList.size() - 1), self());
 			}
@@ -496,14 +508,16 @@ public class Participant extends Node {
 
 	public void onConsolidationUpdate(Update msg) {
 		delay();
-		if (msg.isEpochConsolidation() && isElecting){
+		if (msg.isEpochConsolidation() && isElecting) {
 			// Add pending updates sent by other participants to a list
 			if (this.isCoordinator()) {
 				pendingUpdates.add(msg);
 			} else { // Implements last update
-				print("Received WriteOK for last update consolidation");
+				print("Received last update for consolidation");
 				this.waitingList.get(epoch).add(msg);
-				this.setValue(msg.getValue());
+				this.waitingList.get(epoch).get(waitingList.get(epoch).size() - 1).setValidity(true);
+				this.setValue(waitingList.get(epoch).get(waitingList.get(epoch).size() - 1).getValue());
+				print("Updated value :" + this.getValue());
 
 				// Changing to standard mode
 
@@ -523,7 +537,7 @@ public class Participant extends Node {
 		isElecting = false;
 		this.sequenceNumber = 0;
 		incrementEpoch();
-		print("New Epoch : " + this.epoch ) ;
+		print("New Epoch : " + this.epoch);
 		waitingList.add(new ArrayList<Update>());
 	}
 
@@ -556,6 +570,7 @@ public class Participant extends Node {
 		Acknowledgement acknowledgement = new Acknowledgement(Acknowledge.ACK, msg.getEpoch(), msg.getSequenceNumber(),
 				this.id);
 		this.coordinator.tell(acknowledgement, getSelf());
+		lastSentAck = acknowledgement;
 		this.print("ACK sent for (" + msg.getEpoch() + ", " + msg.getSequenceNumber() + ", " + msg.getValue() + ")");
 		nodeTimeouts.put(coordinator_id,
 				getContext().system().scheduler().scheduleOnce(Duration.create(WRITEOK_TIMEOUT, TimeUnit.MILLISECONDS),

@@ -13,11 +13,11 @@ public class WriteOk implements Serializable {
 	private final int request_seqnum;
 	private final int sender_id ;
 
-	public WriteOk(final boolean writeOk, final int request_epoch, final int request_seqnum, int sender_id) {
+	public WriteOk(final boolean writeOk, final int request_epoch, final int request_seqnum, int id) {
 		this.writeOk = writeOk;
 		this.request_epoch = request_epoch;
 		this.request_seqnum = request_seqnum;
-		this.sender_id = sender_id ;
+		this.sender_id = id ;
 	}
 
 	public int getRequest_epoch() {
@@ -31,5 +31,4 @@ public class WriteOk implements Serializable {
 	public int getSender_id() {
 		return sender_id;
 	}
-
 }

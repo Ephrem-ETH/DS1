@@ -35,7 +35,7 @@ public abstract class Node extends AbstractActor {
 	protected List<Integer> crashedNodes;
 
 	public enum toMessages {
-		UPDATE, WRITEOK, HEARTBEAT, ACK, ELECTION, ELECTION_TOTAL, SYNCH
+		UPDATE, WRITEOK, HEARTBEAT, ACK, ELECTION, ELECTION_TOTAL, SYNCH, TERMINATION_UPDATE
 	};
 
 	public Node(final int id) {
