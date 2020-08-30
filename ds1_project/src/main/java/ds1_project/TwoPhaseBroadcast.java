@@ -7,6 +7,11 @@ import akka.actor.ActorSystem;
 
 import java.io.Serializable;
 import java.util.Map;
+
+import com.typesafe.config.Config;
+import com.typesafe.config.ConfigFactory;
+import com.typesafe.config.ConfigValueFactory;
+
 import java.util.Collections;
 import java.util.HashMap;
 import java.io.IOException;
@@ -68,9 +73,9 @@ public class TwoPhaseBroadcast {
 
 	/*-- Main ------------------------------------------------------------------*/
 	public static void main(final String[] args) {
-
+		Config customConf = ConfigFactory.load("application.conf");
 		// Create the actor system
-		final ActorSystem system = ActorSystem.create("helloakka");
+		final ActorSystem system = ActorSystem.create("helloakka",customConf);
 
 		// Create the coordinator
 		final ActorRef coordinator = system.actorOf(Participant.props(), "coordinator");

@@ -2,6 +2,8 @@ package ds1_project.Actors;
 
 import akka.actor.ActorRef;
 import akka.actor.Cancellable;
+import akka.event.Logging;
+import akka.event.LoggingAdapter;
 import akka.actor.AbstractActor;
 import ds1_project.TwoPhaseBroadcast.*;
 import scala.concurrent.duration.Duration;
@@ -31,11 +33,12 @@ public abstract class Node extends AbstractActor {
 
 	private int value;
 	private ActorRef sender;
+	LoggingAdapter log;
 
 	protected List<Integer> crashedNodes;
 
 	public enum toMessages {
-		UPDATE, WRITEOK, HEARTBEAT, ACK, ELECTION, ELECTION_TOTAL, SYNCH, TERMINATION_UPDATE
+		UPDATE, WRITEOK, HEARTBEAT, ACK, ELECTION, ELECTION_TOTAL, SYNCH
 	};
 
 	public Node(final int id) {
@@ -46,6 +49,7 @@ public abstract class Node extends AbstractActor {
 		Update initialUpdate = new Update(0,0,0,0) ;
 		initialUpdate.setValidity(true);
 		waitingList.get(0).add(initialUpdate) ;
+		log = Logging.getLogger(this);
 	}
 
 	// Getters and Setters

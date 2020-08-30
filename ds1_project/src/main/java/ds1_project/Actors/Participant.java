@@ -21,9 +21,11 @@ import java.util.concurrent.TimeUnit;
 import akka.actor.ActorRef;
 import akka.actor.Cancellable;
 import akka.actor.Props;
+import akka.event.Logging;
+import akka.event.LoggingAdapter;
 import ds1_project.Responses.*;
 
-public class Participant extends Node {
+public class Participant extends Node  {
 	// Timeout values
 	final static int WRITEOK_TIMEOUT = 9000;
 	final static int UPDATE_TIMEOUT = 3000;
@@ -40,8 +42,9 @@ public class Participant extends Node {
 
 	// Pending updates
 	private List<Update> pendingUpdates = new ArrayList<Update>();
-
 	// Working variables
+
+	//Last sent ack for termination protocol
 	private Acknowledgement lastSentAck;
 
 	// Current stable state
@@ -111,8 +114,8 @@ public class Participant extends Node {
 		return this.coordinator;
 	}
 
-	public void incrementEpoch() {
-		this.epoch = this.epoch + 1;
+	public void incrementEpoch(){
+		this.epoch = this.epoch + 1 ;
 	}
 
 	// Message reception methods
@@ -126,10 +129,13 @@ public class Participant extends Node {
 		this.heartbeat_timeout = getContext().system().scheduler().scheduleOnce(
 				Duration.create(HEARTBEAT_DELAY, TimeUnit.MILLISECONDS), getSelf(),
 				new Timeout(toMessages.HEARTBEAT, coordinator_id), getContext().system().dispatcher(), getSelf());
+	
+		log.debug("Starting ...");
 	}
 
 	public void OnReadRequest(final ReadRequest msg) {
 		getSender().tell(new ReadResponse(this.getValue()), self());
+		log.debug("The read request({}) sent by {}", msg, getSender());
 	}
 
 	public void onUpdateRequest(final UpdateRequest msg) {
@@ -141,7 +147,8 @@ public class Participant extends Node {
 			Update update = new Update(this.epoch, currentSeqNum, msg.getValue(), this.id);
 			multicast(update);
 			waitingList.get(this.epoch).add(update);
-
+            log.debug(" At epoch {} update with sequence number = {} : "
+            		+ "{} is broadcasted by {}",this.epoch,currentSeqNum, msg.getValue(),this.id);
 			// start timeout for each node in the system
 
 			for (Map.Entry<Integer, ActorRef> entry : network.entrySet()) {
@@ -158,6 +165,7 @@ public class Participant extends Node {
 
 		} else {
 			coordinator.tell(msg, self()); // forward to corrdinator
+			log.debug("update request forwarded from {}", self());
 			// Start timeout
 			nodeTimeouts.put(coordinator_id,
 					getContext().system().scheduler().scheduleOnce(
@@ -179,6 +187,7 @@ public class Participant extends Node {
 
 			// Enter election mode
 			getContext().become(electionReceive());
+			log.debug("Enter into election mode ...");
 			isElecting = true;
 
 			// Cancel standard timeouts
@@ -197,10 +206,11 @@ public class Participant extends Node {
 					destinationID++;
 				}
 				msg.addCandidate(this.id, this.sequenceNumber); // last implemented update -> maybe go for most recent
-																// update in
+				log.debug("Node {} with sequence number {} is added to the ring", this.id, this.sequenceNumber);										// update in
 				// waiting list
 				lastElectionMessage = msg; // save in case of crash of the next node
 				network.get(destinationID).tell(msg, self());
+				log.debug("Node {} passes election message to {}",this.id, destinationID);
 				this.election_timeout = scheduleTimeout(ELECTION_TIMEOUT, toMessages.ELECTION, destinationID);
 
 				//
@@ -231,6 +241,7 @@ public class Participant extends Node {
 
 				this.setCoordinator(true);
 				print("I won the election");
+				log.debug("{} won the election", this.id);
 				isCoordinatorFound = true;
 				coordinatorEpochLaunch();
 				won = true;
@@ -277,18 +288,20 @@ public class Participant extends Node {
 	}
 
 	public void onElectionAck(ElectionAck msg) {
-		// TODO Ephrem
+	
 		print("Received Election ACK");
 		if (msg.ack == Acknowledge.ACK) {
 			if (election_timeout != null) {
 				election_timeout.cancel();
 			}
 		}
+		log.debug("Election ACK received");
 	}
 
 	void OnCrashedNodeWarning(CrashedNodeWarning msg) {
 		if (!this.crashedNodes.contains(msg.getNode())) {
 			print("Adding node " + msg.getNode() + " to crashed list");
+			log.debug("Adding node {}  to crashed list", msg.getNode());
 			crashedNodes.add(msg.getNode());
 		}
 	}
@@ -385,7 +398,6 @@ public class Participant extends Node {
 				} else {
 					multicast(new EndEpoch()) ;
 				}
-
 			} else {
 				multicast(new EndEpoch());
 			}
@@ -393,7 +405,7 @@ public class Participant extends Node {
 			sendHeartbeat();
 			incrementEpoch();
 			this.sequenceNumber = 0;
-			waitingList.add(new ArrayList<Update>());
+			waitingList.add(new ArrayList<Update>()) ;
 			isElecting = false;
 			getContext().become(createReceive());
 		}
@@ -508,7 +520,7 @@ public class Participant extends Node {
 
 	public void onConsolidationUpdate(Update msg) {
 		delay();
-		if (msg.isEpochConsolidation() && isElecting) {
+		if (msg.isEpochConsolidation() && isElecting){
 			// Add pending updates sent by other participants to a list
 			if (this.isCoordinator()) {
 				pendingUpdates.add(msg);
@@ -537,7 +549,7 @@ public class Participant extends Node {
 		isElecting = false;
 		this.sequenceNumber = 0;
 		incrementEpoch();
-		print("New Epoch : " + this.epoch);
+		print("New Epoch : " + this.epoch ) ;
 		waitingList.add(new ArrayList<Update>());
 	}
 
