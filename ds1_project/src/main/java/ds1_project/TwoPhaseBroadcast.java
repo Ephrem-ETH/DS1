@@ -125,19 +125,23 @@ public class TwoPhaseBroadcast {
 			System.in.read();
 		} catch (final IOException ignored) {
 		}
+		// Second Read request
 		group.get(3).tell(new ReadRequest(), client);
 		try {
 			System.out.println(">>> Press ENTER to continue <<<");
 			System.in.read();
 		} catch (final IOException ignored) {
 		}
+		//Second Update
 		group.get(2).tell(new UpdateRequest(15), client);
 		try {
 			Thread.sleep(80);
 		} catch (Exception ignored) {
 			//TODO: handle exception
 		}
+		//Coordinator crash
 		coordinator.tell(new CrashRequest(),client);
+		//Third update -> This one is not treated by the systems as it enters into election mode
 		group.get(1).tell(new UpdateRequest(10), client);
 
 
@@ -146,14 +150,6 @@ public class TwoPhaseBroadcast {
 			System.in.read();
 		} catch (final IOException ignored) {
 		}
-
-		//coordinator.tell(new CrashRequest(),client);
-		try {
-			System.out.println(">>> Press ENTER to continue <<<");
-			System.in.read();
-		} catch (final IOException ignored) {
-		}
-		group.get(1).tell(new ReadRequest(), client);
 		
 
 		try {
@@ -166,29 +162,6 @@ public class TwoPhaseBroadcast {
 		group.get(3).tell(new ReadRequest(), client);
 		group.get(4).tell(new ReadRequest(), client);
 		group.get(5).tell(new ReadRequest(), client);
-
-
-		try {
-			Thread.sleep(500);
-		} catch (Exception ignored) {
-			//TODO: handle exception
-		}
-
-		System.out.println("New update");
-		group.get(2).tell(new UpdateRequest(66), client);
-
-		try {
-			Thread.sleep(3000);
-		} catch (Exception ignored) {
-			//TODO: handle exception
-		}
-
-		group.get(1).tell(new ReadRequest(), client);
-		group.get(2).tell(new ReadRequest(), client);
-		group.get(3).tell(new ReadRequest(), client);
-		group.get(4).tell(new ReadRequest(), client);
-		group.get(5).tell(new ReadRequest(), client);
-
 
 		try {
 			System.out.println(">>> Press ENTER to exit <<<");

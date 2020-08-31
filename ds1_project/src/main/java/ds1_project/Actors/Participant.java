@@ -126,10 +126,8 @@ public class Participant extends Node  {
 		if (this.isCoordinator()) {
 			sendHeartbeat();
 		}
-		this.heartbeat_timeout = getContext().system().scheduler().scheduleOnce(
-				Duration.create(HEARTBEAT_DELAY, TimeUnit.MILLISECONDS), getSelf(),
-				new Timeout(toMessages.HEARTBEAT, coordinator_id), getContext().system().dispatcher(), getSelf());
-	
+		this.heartbeat_timeout = scheduleTimeout(HEARTBEAT_DELAY, toMessages.HEARTBEAT, coordinator_id) ;
+
 		log.debug("Starting ...");
 	}
 
@@ -155,11 +153,7 @@ public class Participant extends Node  {
 				if (entry.getKey() != this.id && !crashedNodes.contains(entry.getValue())
 						&& !this.nodeTimeouts.containsKey(entry.getKey())) {
 					// print("Setting timeout for node " + entry.getKey()) ;
-					nodeTimeouts.put(entry.getKey(),
-							getContext().system().scheduler().scheduleOnce(
-									Duration.create(UPDATE_TIMEOUT, TimeUnit.MILLISECONDS), getSelf(),
-									new Timeout(toMessages.UPDATE, entry.getKey()), // the message to send
-									getContext().system().dispatcher(), getSelf()));
+					nodeTimeouts.put(entry.getKey(), scheduleTimeout(UPDATE_TIMEOUT, toMessages.UPDATE, entry.getKey())) ;
 				}
 			}
 
@@ -167,15 +161,8 @@ public class Participant extends Node  {
 			coordinator.tell(msg, self()); // forward to corrdinator
 			log.debug("update request forwarded from {}", self());
 			// Start timeout
-			nodeTimeouts.put(coordinator_id,
-					getContext().system().scheduler().scheduleOnce(
-							Duration.create(UPDATE_TIMEOUT, TimeUnit.MILLISECONDS), getSelf(),
-							new Timeout(toMessages.UPDATE, coordinator_id), // the
-							// message
-							// to
-							// send
-							getContext().system().dispatcher(), getSelf()));
-		}
+			nodeTimeouts.put(coordinator_id, scheduleTimeout(UPDATE_TIMEOUT, toMessages.UPDATE, coordinator_id)) ;
+							}
 
 	}
 
@@ -482,10 +469,7 @@ public class Participant extends Node  {
 			heartbeat_timeout = null;
 		}
 		// print("sent new heartbeat");
-		this.heartbeat_timeout = getContext().system().scheduler().scheduleOnce(
-				Duration.create(HEARTBEAT_DELAY / 5, TimeUnit.MILLISECONDS), getSelf(),
-				new Timeout(toMessages.HEARTBEAT, coordinator_id), // the message to send
-				getContext().system().dispatcher(), getSelf());
+		this.heartbeat_timeout = scheduleTimeout(HEARTBEAT_DELAY/5, toMessages.HEARTBEAT, coordinator_id) ;
 		multicast(new Heartbeat());
 	}
 
@@ -584,13 +568,7 @@ public class Participant extends Node  {
 		this.coordinator.tell(acknowledgement, getSelf());
 		lastSentAck = acknowledgement;
 		this.print("ACK sent for (" + msg.getEpoch() + ", " + msg.getSequenceNumber() + ", " + msg.getValue() + ")");
-		nodeTimeouts.put(coordinator_id,
-				getContext().system().scheduler().scheduleOnce(Duration.create(WRITEOK_TIMEOUT, TimeUnit.MILLISECONDS),
-						getSelf(), new Timeout(toMessages.WRITEOK, coordinator_id), // the
-						// message
-						// to
-						// send
-						getContext().system().dispatcher(), getSelf()));
+		nodeTimeouts.put(coordinator_id, scheduleTimeout(WRITEOK_TIMEOUT, toMessages.WRITEOK, coordinator_id)) ;
 		System.out.println("");
 	}
 
@@ -604,13 +582,8 @@ public class Participant extends Node  {
 			}
 
 			// print("Heartbeat received");
-			this.heartbeat_timeout = getContext().system().scheduler().scheduleOnce(
-					Duration.create(HEARTBEAT_DELAY, TimeUnit.MILLISECONDS), getSelf(),
-					new Timeout(toMessages.HEARTBEAT, coordinator_id), // the
-					// message
-					// to
-					// send
-					getContext().system().dispatcher(), getSelf());
+			this.heartbeat_timeout = scheduleTimeout(HEARTBEAT_DELAY, toMessages.HEARTBEAT, coordinator_id) ;
+			
 		}
 	}
 
