@@ -4,10 +4,15 @@ import java.io.Serializable;
 
 import ds1_project.TwoPhaseBroadcast.Acknowledge;
 
-//participants send acknowledgement when the coordinator sends update request 
 public class Acknowledgement implements Serializable {
 	/**
-	 *
+	 * Acknowledgement : Participants send acknowledgement after they receive
+	   an update request from the coordinator. If the number of collected ACKs
+	   by the coordinator exceeds the quorum, the update is implemented.
+
+	   This function takes the coordinates of an update (epoch, sequence) and the
+	   sender ID as argument. It also supports the replying of a NACK in case the
+	   node is alive but cannot support the update, but this case is not implemented.
 	 */
 	private static final long serialVersionUID = 1L;
 
