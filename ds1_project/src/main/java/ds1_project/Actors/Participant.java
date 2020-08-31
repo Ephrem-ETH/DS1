@@ -337,7 +337,7 @@ public class Participant extends Node  {
 						}
 					}
 					network.get(destinationID).tell(lastElectionMessage, self());
-					scheduleTimeout(ELECTION_TIMEOUT, toMessages.ELECTION, destinationID);
+					this.election_timeout = scheduleTimeout(ELECTION_TIMEOUT, toMessages.ELECTION, destinationID);
 				}
 			}
 		}
@@ -393,6 +393,7 @@ public class Participant extends Node  {
 			incrementEpoch();
 			this.sequenceNumber = 0;
 			waitingList.add(new ArrayList<Update>()) ;
+			waitingList.get(epoch).add(new Update(epoch,0,this.getValue(),this.coordinator_id)) ;
 			isElecting = false;
 			getContext().become(createReceive());
 		}
@@ -419,7 +420,7 @@ public class Participant extends Node  {
 		HashSet<ActorRef> voters = new HashSet<>();
 		boolean flag = false;
 
-		if (ack == Acknowledge.ACK && msg.getRequest_seqnum() > this.sequenceNumber) {
+		if (ack == Acknowledge.ACK && msg.getRequest_epoch()==this.epoch && msg.getRequest_seqnum() > this.sequenceNumber) {
 
 			for (Map.Entry<Key, HashSet<ActorRef>> entry : majorityVoters.entrySet()) {
 				if (entry.getKey().equals(key)) {
@@ -477,9 +478,11 @@ public class Participant extends Node  {
 
 	public void onSychronizationMessage(Synchronization msg) {
 		delay();
+		if (election_timeout!=null){
 		election_timeout.cancel();
 		election_timeout = null;
-		election_duration_timeout.cancel();
+		}
+		
 		print("Received WriteOK for epoch synchronization");
 		if (msg.getUpdate() != null && lastSentAck != null) {
 			// Is there a more recent ACKed update ?
@@ -494,7 +497,7 @@ public class Participant extends Node  {
 		} else {
 			if (waitingList.size() > 0 && lastSentAck != null && lastSentAck.getRequest_epoch() == epoch) {
 				waitingList.get(epoch).get(waitingList.get(epoch).size() - 1).setEpochConsolidation(true);
-				coordinator.tell(waitingList.get(epoch).get(waitingList.size() - 1), self());
+				coordinator.tell(waitingList.get(epoch).get(waitingList.get(epoch).size() - 1), self());
 			}
 		}
 		this.isCoordinatorFound = false;
@@ -504,6 +507,7 @@ public class Participant extends Node  {
 
 	public void onConsolidationUpdate(Update msg) {
 		delay();
+		election_duration_timeout.cancel();
 		if (msg.isEpochConsolidation() && isElecting){
 			// Add pending updates sent by other participants to a list
 			if (this.isCoordinator()) {
@@ -523,18 +527,23 @@ public class Participant extends Node  {
 				incrementEpoch();
 				print("New epoch : " + this.epoch);
 				waitingList.add(new ArrayList<Update>());
+				waitingList.get(epoch).add(new Update(epoch,0,this.getValue(),this.coordinator_id)) ;
 			}
 		}
 
 	}
 
 	public void onEpochEndMessage(EndEpoch msg) {
+		delay ();
+		election_duration_timeout.cancel();
 		getContext().unbecome();
 		isElecting = false;
 		this.sequenceNumber = 0;
 		incrementEpoch();
 		print("New Epoch : " + this.epoch ) ;
 		waitingList.add(new ArrayList<Update>());
+		waitingList.get(epoch).add(new Update(epoch,0,this.getValue(),this.coordinator_id)) ;
+
 	}
 
 	public void onWriteOK(final WriteOk msg) {

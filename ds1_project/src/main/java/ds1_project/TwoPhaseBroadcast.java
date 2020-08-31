@@ -144,6 +144,13 @@ public class TwoPhaseBroadcast {
 		//Third update -> This one is not treated by the systems as it enters into election mode
 		group.get(1).tell(new UpdateRequest(10), client);
 
+		try {
+			System.out.println(">>> Press ENTER to continue <<<");
+			System.in.read();
+		} catch (final IOException ignored) {
+		}
+
+		group.get(3).tell(new UpdateRequest(4), client);
 
 		try {
 			System.out.println(">>> Press ENTER to crash coordinator <<<");
@@ -151,6 +158,15 @@ public class TwoPhaseBroadcast {
 		} catch (final IOException ignored) {
 		}
 		
+		group.get(1).tell(new CrashRequest(), client);
+
+		try {
+			System.out.println(">>> Press ENTER to crash coordinator <<<");
+			System.in.read();
+		} catch (final IOException ignored) {
+		}
+		
+		group.get(2).tell(new CrashRequest(), client);
 
 		try {
 			System.out.println(">>> Press ENTER to continue <<<");
