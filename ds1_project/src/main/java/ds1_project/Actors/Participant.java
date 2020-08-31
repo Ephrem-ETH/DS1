@@ -299,12 +299,14 @@ public class Participant extends Node  {
 
 			if (msg.toMess == toMessages.UPDATE) {
 				print("Update Timeout:" + "Node " + msg.getWatchingNode() + " Crashed");
+				log.debug("Update Timeout: Node {} crashed", msg.getWatchingNode());
 				this.crashedNodes.add(msg.getWatchingNode());
 				multicast(new CrashedNodeWarning(msg.getWatchingNode()));
 
 				if (msg.getWatchingNode() == this.coordinator_id && !this.isCoordinator()) {
 					print(" Send election message");
-					startElection();
+					log.debug("{} sends election message", this.id);
+ 				        startElection();
 				}
 
 			}
@@ -312,6 +314,7 @@ public class Participant extends Node  {
 			if (msg.toMess == toMessages.WRITEOK) {
 
 				print("WriteOk Timeout:" + "Coordinator Crash");
+				log.debug("WriteOk Timeout: Coordinator crashed");
 				this.crashedNodes.add(msg.getWatchingNode());
 				multicast(new CrashedNodeWarning(this.coordinator_id));
 				print(" Send election message");
@@ -322,6 +325,7 @@ public class Participant extends Node  {
 			if (msg.toMess == toMessages.ELECTION) {
 				if (isElecting) {
 					print("Election timeout : Node " + msg.getWatchingNode() + " crashed");
+					log.debug("Election timeout: Node {} crashed" + msg.getWatchingNode());
 					this.crashedNodes.add(msg.getWatchingNode());
 					multicast(new CrashedNodeWarning(msg.getWatchingNode()));
 
@@ -338,6 +342,8 @@ public class Participant extends Node  {
 					}
 					network.get(destinationID).tell(lastElectionMessage, self());
 					this.election_timeout = scheduleTimeout(ELECTION_TIMEOUT, toMessages.ELECTION, destinationID);
+				        log.debug("Schedule election timeout");
+
 				}
 			}
 		}
@@ -347,6 +353,7 @@ public class Participant extends Node  {
 				sendHeartbeat();
 			} else {
 				print("Heartbeat timeout : Coordinator crashed");
+			        log.debug("Heartbeat timeout : Coordinator crashed");
 				this.crashedNodes.add(this.coordinator_id);
 				multicast(new CrashedNodeWarning(this.coordinator_id));
 				print(" Send election message");
@@ -356,9 +363,11 @@ public class Participant extends Node  {
 
 		if (msg.toMess == toMessages.ELECTION_TOTAL) {
 			getContext().unbecome();
+			log.debug("Change Context to standard mode");
 			lastElectionMessage = null;
 			isElecting = false;
 			print("Election did not terminate - restarting process");
+			log.debug("Election did not terminate - restarting process");
 			startElection();
 		}
 
@@ -384,9 +393,13 @@ public class Participant extends Node  {
 					this.sequenceNumber = toSend.getSequenceNumber();
 				} else {
 					multicast(new EndEpoch()) ;
+					log.debug("Broadcasting a message to end the epoch");
+
 				}
 			} else {
 				multicast(new EndEpoch());
+				log.debug("Broadcasting a message to end the epoch");
+
 			}
 			pendingUpdates = new ArrayList<Update>();
 			sendHeartbeat();
@@ -396,6 +409,8 @@ public class Participant extends Node  {
 			waitingList.get(epoch).add(new Update(epoch,0,this.getValue(),this.coordinator_id)) ;
 			isElecting = false;
 			getContext().become(createReceive());
+		        log.debug("Change context to create receive mode");
+
 		}
 
 	}
@@ -413,6 +428,7 @@ public class Participant extends Node  {
 			// print("Cancelled Update Timeout for "+msg.getSender_id());
 		}
 		print("received ack from " + msg.getSender_id());
+		log.debug("Received ack from {}",msg.getSender_id());
 		Acknowledge ack = (msg).ack;
 		// print("Received ACK from "+sender()+" with seqnum "+msg.getRequest_seqnum())
 		// ;
@@ -435,6 +451,8 @@ public class Participant extends Node  {
 			}
 
 			print("Received ACKs :" + majorityVoters.get(key).size());
+			log.debug("Received ACKs :{}" , majorityVoters.get(key).size());
+
 		}
 
 		Quorum(key);
@@ -454,11 +472,13 @@ public class Participant extends Node  {
 				// Coordinator crashed before sending writeOk message
 				// this.crash();
 				print("Majority of ACK - Sending WriteOK messages for s=" + toImplement.getSequenceNumber());
+				log.debug("Majority of ACK - Sending WriteOK messages for s= {}",toImplement.getSequenceNumber());
 				multicast(new WriteOk(true, toImplement.getEpoch(), toImplement.getSequenceNumber(), this.id));
 				// crash();
 				sequenceNumber = toImplement.getSequenceNumber();
 				this.setValue(toImplement.getValue());
 				print("Updated value :" + this.getValue());
+				log.debug("Updated value: {}",this.getValue());
 				newUpdate = false;
 			}
 		}
@@ -484,6 +504,8 @@ public class Participant extends Node  {
 		}
 		
 		print("Received WriteOK for epoch synchronization");
+		log.debug("Received writeok for epoch synchronization ");
+
 		if (msg.getUpdate() != null && lastSentAck != null) {
 			// Is there a more recent ACKed update ?
 			if (msg.getUpdate().getSequenceNumber() < lastSentAck.getRequest_seqnum()
@@ -514,11 +536,12 @@ public class Participant extends Node  {
 				pendingUpdates.add(msg);
 			} else { // Implements last update
 				print("Received last update for consolidation");
+				log.debug("Received last update for consolidation");
 				this.waitingList.get(epoch).add(msg);
 				this.waitingList.get(epoch).get(waitingList.get(epoch).size() - 1).setValidity(true);
 				this.setValue(waitingList.get(epoch).get(waitingList.get(epoch).size() - 1).getValue());
 				print("Updated value :" + this.getValue());
-
+                                log.debug("Updated value : {}", this.getValue());
 				// Changing to standard mode
 
 				getContext().unbecome();
@@ -526,6 +549,7 @@ public class Participant extends Node  {
 				this.sequenceNumber = 0;
 				incrementEpoch();
 				print("New epoch : " + this.epoch);
+				log.debug("New epoch : {}", this.epoch);
 				waitingList.add(new ArrayList<Update>());
 				waitingList.get(epoch).add(new Update(epoch,0,this.getValue(),this.coordinator_id)) ;
 			}
@@ -572,6 +596,8 @@ public class Participant extends Node  {
 		waitingList.get(msg.getEpoch()).add(msg); // Causes errror if several un-initialized epochs chain
 		print("queued value" + waitingList.get(msg.getEpoch()).get(msg.getSequenceNumber()).getValue()
 				+ "at sequence number " + msg.getSequenceNumber());
+		log.debug("queued value {} at sequence number {}",
+				waitingList.get(msg.getEpoch()).get(msg.getSequenceNumber()).getValue(),msg.getSequenceNumber());
 		Acknowledgement acknowledgement = new Acknowledgement(Acknowledge.ACK, msg.getEpoch(), msg.getSequenceNumber(),
 				this.id);
 		this.coordinator.tell(acknowledgement, getSelf());
@@ -647,6 +673,7 @@ public class Participant extends Node  {
 			}
 			heartbeat_timeout.cancel();
 			print("Starting election process");
+			log.debug("Get started the election process");
 			ElectionMessage msg = new ElectionMessage(this.epoch, this.id);
 			int destinationID = this.id + 1;
 			while (crashedNodes.contains(destinationID)) {
@@ -674,6 +701,7 @@ public class Participant extends Node  {
 		getContext().become(crashed());
 		this.isCrashed = true;
 		print(" Crash!!");
+		log.debug("Node {} crashes!!",this.id);
 	}
 
 	public Cancellable scheduleTimeout(int duration, toMessages type, int watchingNode) {
@@ -695,6 +723,7 @@ public class Participant extends Node  {
 				found = true;
 				Update toImplement = waitingList.get(epoch).get(i);
 				print("Multicasting last known update");
+				log.debug("Broadcasting last known update : {}", toImplement);
 				multicast(new Synchronization(toImplement));
 			}
 			i--;
