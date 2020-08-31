@@ -8,8 +8,13 @@ import java.util.ArrayList;
 public class ElectionMessage implements Serializable {
     
     /**
-     *
+     * Election message: Sent by a node detecting a coordinator crash.
+     * Created with the emitter ID and the epoch number.
+     * The candidatesID list will be updated alongside the lastUpdate list
+     * each time a new node in the ring topology (based on nodes ID)
+     * receives this token.
      */
+
     private static final long serialVersionUID = 1L;
     
     private int electionEpoch; // Epoch number + (concatenation) emmiter ID
