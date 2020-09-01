@@ -26,6 +26,14 @@ import akka.event.LoggingAdapter;
 import ds1_project.Responses.*;
 
 public class Participant extends Node  {
+
+	/**
+	 * Participant class : contains all useful methods for the coordinator and
+	 * participant nodes. Most of these are reception methods, triggered when
+	 * receiving a specific message type, broken down into 3 behaviors : standard,
+	 * election and crashed.
+	 */
+
 	// Timeout values
 	final static int WRITEOK_TIMEOUT = 9000;
 	final static int UPDATE_TIMEOUT = 3000;
@@ -122,6 +130,9 @@ public class Participant extends Node  {
 
 	// Common
 	public void onStartMessage(final StartMessage msg) {
+		/**
+		 * Initialization method
+		 */
 		setGroup(msg);
 		if (this.isCoordinator()) {
 			sendHeartbeat();
@@ -294,6 +305,10 @@ public class Participant extends Node  {
 	}
 
 	public void onTimeout(Timeout msg) {
+
+		/**
+		 * Deals with all cases of timeout
+		 */
 
 		if (msg.getWatchingNode() != this.id) {
 
@@ -664,6 +679,10 @@ public class Participant extends Node  {
 	}
 
 	public void startElection() {
+
+		/**
+		 * Triggerred by a node detecting a coordinator crash
+		 */
 
 		if (!isElecting) {
 			getContext().become(electionReceive());

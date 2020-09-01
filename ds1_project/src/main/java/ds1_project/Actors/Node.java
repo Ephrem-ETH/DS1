@@ -19,6 +19,12 @@ import java.util.HashMap;
 /*-- Common functionality for both Coordinator and Participants ------------*/
 
 public abstract class Node extends AbstractActor {
+
+	/**
+	 * Generic AbstractActor: contains various mutility methods
+	 * for participant and coordiantor nodes.
+	 */
+
 	protected int id; // node ID
 
 	// List of nodes with ID as key

@@ -1,9 +1,17 @@
 package ds1_project;
 
 public class Key {
-	public static int[] keyparams;
+
+	/** 
+	 * Key : class used for coordinate positionning of Updates (epoch,
+	 * sequence number). Using objects for such a simple positionning
+	 * instead of primitive types is cumbersome and was hence almost
+	 * abandoned for a more straigthforward solution.
+	*/ 
 
 	// epoch and sequence numbers
+	public static int[] keyparams;
+
 	public Key(final int e, final int s) {
 		int [] params = {e,s} ;
 		keyparams = params ;

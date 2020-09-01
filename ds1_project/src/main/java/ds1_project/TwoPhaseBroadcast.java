@@ -17,6 +17,11 @@ import java.util.HashMap;
 import java.io.IOException;
 
 public class TwoPhaseBroadcast {
+
+	/**
+	 * Main class, used for initializing the system and testing it.
+	 */
+
 	// Variables
 	public final static int N_PARTICIPANTS = 5;
 	public final static int REQUEST_TIMEOUT = 1000; // timeout for the votes, ms
@@ -73,6 +78,9 @@ public class TwoPhaseBroadcast {
 
 	/*-- Main ------------------------------------------------------------------*/
 	public static void main(final String[] args) {
+
+		// FIRST SECTION - INITIALIZATION - DO NOT EDIT
+
 		Config customConf = ConfigFactory.load("application.conf");
 		// Create the actor system
 		final ActorSystem system = ActorSystem.create("helloakka",customConf);
@@ -101,6 +109,8 @@ public class TwoPhaseBroadcast {
 
 		// Send the start messages to the coordinator
 		coordinator.tell(start, null);
+
+		// END OF INITIALIZATION - EDIT THE SIMULATION STEPS BELOW
 
 		//Launch simulation
 		try {

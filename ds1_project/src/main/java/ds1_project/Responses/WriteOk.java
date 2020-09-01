@@ -5,8 +5,16 @@ import java.io.Serializable;
 public class WriteOk implements Serializable {
 
 	/**
-	 *
+	 * WriteOK : A message sent by the coordinator to other participants when
+	 * a decision to implement an Update is taken. It takes as argument the
+	 * coordinates of the Update (epoch, sequence number), a boolean (theoritically
+	 * allowing to discard the Update if needed - unused feature) and the sender
+	 * ID.
+	 * 
+	 * Upon reception, participant update their value and the sequence number to match
+	 * the implemented Update and mark the Update as validated in the history.
 	 */
+
 	private static final long serialVersionUID = 1L;
 	boolean writeOk;
 	private final int request_epoch;

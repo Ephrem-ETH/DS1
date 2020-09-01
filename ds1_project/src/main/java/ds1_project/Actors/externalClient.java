@@ -6,6 +6,13 @@ import ds1_project.Responses.*;
 
 public class externalClient extends AbstractActor {
 
+	/**
+	 * externalClient: an Actor used for sending requests to the system. This
+	 * is the main way of testing the system, simulating a practical use where
+	 * the system should remain completely hidden from the standard user.
+	 * 
+	 */
+
 	public externalClient() {
 	}
 
